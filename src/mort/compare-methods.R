@@ -12,6 +12,7 @@ library(ggplot2)
 #' Inputs
 reach <- readRDS("./gen/mort/output/reach-rates.rds")
 demog <- readRDS("./gen/mort/audit/demog-rates.rds")
+dhs <- readRDS("./gen/mort/audit/dhs-rates.rds")
 ################################################################################
 
 df_reach <- reach %>%
@@ -26,7 +27,14 @@ df_demog <- demog %>%
   rename(qx = est) %>%
   mutate(source = "demogsurv")
 
-dat <- rbind(df_reach, df_demog)
+df_dhs <- dhs %>%
+  filter(tips %in% c("0-4", "5-9", "10-14")) %>%
+  select(type, tips, agegrp, byvar, est) %>%
+  rename(qx = est) %>%
+  mutate(source = "dhs") %>%
+  filter(agegrp %in% c("Neonatal", "Under5"))
+
+dat <- rbind(df_reach, df_demog, df_dhs)
 
 p1 <- dat %>%
   filter(type == "All") %>%
