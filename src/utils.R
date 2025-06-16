@@ -170,7 +170,8 @@ fn_reldifdob <- function(x, module = "BR"){
 # aad heaping
 fn_reldif7d <- function(x, module = "BR"){
   
-  # no need, filtering to aadd >5
+  # Already only includes live births because filtering to aadd >=5
+  
   # # only keep live births for fph
   # if(module == "GR"){
   #   x <- x %>%
@@ -192,7 +193,8 @@ fn_reldif7d <- function(x, module = "BR"){
 
 fn_reldif12m <- function(x, module = "BR"){
   
-  # no need
+  # Already only includes live births because filtering to aadm >= 10
+  
   # # only keep live births for fph
   # if(module == "GR"){
   #   x <- x %>%
@@ -477,6 +479,15 @@ fn_calcmort <- function(dat, ages, period = NULL, tips = NULL){
 
 # Demogsurv ---------------------------------------------------------------
 
+.epis_labels <- function(x){
+  if("labels" %in% attributes(x))
+    return(labels(x)[-length(x)])
+  lower <- x[-length(x)]
+  upper <- x[-1]-1
+  val <- ifelse(lower==upper, lower, paste0(lower, "-", upper))
+  gsub("-Inf", "+", val)
+}
+
 .mm_aggr <- function(mf, agegr){
   
   if(any(!vapply(mf, is.factor, logical(1)))){
@@ -616,3 +627,4 @@ val <- data.frame(dfmm$df, estdf)
 
 val
 }
+
