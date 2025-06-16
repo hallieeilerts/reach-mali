@@ -149,7 +149,8 @@ ggsave("./gen/sec01/figures/visit-dates.png", p2, dpi = 300, width = 6, height =
 table(dat$q111_imp_ind)
 round(100 * prop.table(table(dat$q111_imp_ind)), 1)
 
-p3 <- dat %>%  
+# Uncategorized
+dat %>%
   group_by(q111_comb) %>%
   summarise(n = n()) %>%
   ggplot() +
@@ -159,4 +160,18 @@ p3 <- dat %>%
   guides(fill="none") +
   theme_bw() +
   theme(text = element_text(size = 10), title = element_text(size = 8))
+# ggsave("./gen/sec01/figures/respondent-age.png", p3, dpi = 300, width = 3, height = 2)
+
+# categorized
+p3 <- dat %>%  
+  group_by(agecat_resp) %>%
+  summarise(n = n()) %>%
+  ggplot() +
+  geom_bar(aes(x = agecat_resp, y = n), stat = "identity", fill = "#0D0887FF") + #  fill = barfill
+  labs(y = "n", x = "Years", title = "Age of respondents in mortality survey") +
+  #scale_x_continuous(breaks = c(15, 25, 35, 45)) +
+  guides(fill="none") +
+  theme_bw() +
+  theme(text = element_text(size = 10), title = element_text(size = 8),
+        axis.text.x = element_text(angle = 30, hjust = .75))
 ggsave("./gen/sec01/figures/respondent-age.png", p3, dpi = 300, width = 3, height = 2)
