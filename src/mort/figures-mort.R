@@ -65,7 +65,8 @@ gap %>%
   theme_bw() +
   theme(text = element_text(size = 10), title = element_text(size = 8))
 
-# Combined plot for pregnancies by age ------------------------------------
+
+# Combined plot for mx and Qx ---------------------------------------------
 
 # mx
 p1 <- gap %>%
@@ -74,11 +75,15 @@ p1 <- gap %>%
   mutate(tips = factor(cut_time, levels = c("0-4", "5-9", "10-14"))) %>%
   ggplot() +
   geom_step(aes(x = age_y, y = mx*1000), color = "#0D0887FF") +
-  labs(x = "", y = "mx per 1,000 (log scale)") +
+  labs(x = "", y = "mx (log scale)") +
   scale_y_log10() +
   facet_wrap(~tips) +
   theme_bw() +
-  theme(text = element_text(size = 10), title = element_text(size = 8))
+  theme(text = element_text(size = 10), title = element_text(size = 8),
+        plot.margin = margin(0, 0, 0, 0),
+        legend.position = "none",
+        legend.box.background = element_blank(),
+        legend.background = element_blank())
 
 # qx
 p2 <- gap %>%
@@ -86,11 +91,15 @@ p2 <- gap %>%
            cut_time %in% c("0-4", "5-9", "10-14")) %>%
   mutate(tips = factor(cut_time, levels = c("0-4", "5-9", "10-14"))) %>%
   ggplot() +
-  geom_step(aes(x = age_y, y = Qx*100), color = "#0D0887FF") +
+  geom_step(aes(x = age_y, y = Qx*1000), color = "#0D0887FF") +
   labs(x = "Age (years)", y = "Q(x)") +
   facet_wrap(~tips) +
   theme_bw() +
-  theme(text = element_text(size = 10), title = element_text(size = 8))
+  theme(text = element_text(size = 10), title = element_text(size = 8),
+        plot.margin = margin(0, 0, 0, 0),
+        legend.position = "none",
+        legend.box.background = element_blank(),
+        legend.background = element_blank())
 
 # Title as a plot
 title_plot <- as_ggplot(text_grob(
@@ -115,10 +124,13 @@ p2 <- p2 + theme(plot.margin = margin(0, 0, 0, 0))
 final_plot <- ggarrange(
   title_plot,
   ggarrange(p1, p2, ncol = 1),
-  legend,
   nrow = 3,
   heights = c(0.1, 1, 0.15)
 )
+
+# gets rid of thin grey line at bottom of plot
+final_plot <- final_plot +
+  theme(plot.background = element_rect(fill = "white", color = NA))
 
 # Save the final figure
 ggsave("./gen/mort/figures/mort-all-mx-qx.png",
@@ -137,7 +149,7 @@ p <- gap %>%
            cut_time %in% c("0-4", "5-9", "10-14")) %>%
   mutate(tips = factor(cut_time, levels = c("0-4", "5-9", "10-14"))) %>%
   ggplot() +
-  geom_step(aes(x = age_y, y = Qx*100, color = byvar)) +
+  geom_step(aes(x = age_y, y = Qx*1000, color = byvar)) +
   scale_color_manual(values = c("#0D0887FF", "#D8576BFF"), name = "Residence") +
   labs(x = "Age (years)", y = "Q(x)") +
   facet_wrap(~tips) +
@@ -166,7 +178,7 @@ p <- gap %>%
   mutate(tips = factor(cut_time, levels = c("0-4", "5-9", "10-14")),
          byvar = factor(byvar, levels = order_byvar)) %>%
   ggplot() +
-  geom_step(aes(x = age_y, y = Qx*100, color = byvar)) +
+  geom_step(aes(x = age_y, y = Qx*1000, color = byvar)) +
   scale_color_manual(values = c("#0D0887FF", "#7E03A8FF", "#CC4678FF", "#F89441FF", "#FDC926FF"), name = "Region") +
   labs(x = "Age (years)", y = "Q(x)") +
   facet_wrap(~tips) +
@@ -177,6 +189,7 @@ ggsave("./gen/mort/figures/mort-reg-qx.png", p, dpi = 300, width = 6, height = 3
 
 # Table with mortality estimates ------------------------------------------
 
+# All
 reach %>%
   filter(cut_time %in% c("0-4", "5-9", "10-14")) %>%
   mutate(agegrp = factor(agegrp, levels = c("Neonatal", "1to59m", "Under5")),
@@ -187,16 +200,18 @@ reach %>%
   filter(type == "All") %>%
   select(cut_time, agegrp, events, pyears, mx, qx) %>%
   arrange(cut_time, agegrp) %>% 
-  mutate(pyears = sprintf("%0.1f",round(pyears * 1000, 1)),
-         mx = sprintf("%0.2f",round(mx * 1000, 2)),
-         qx = sprintf("%0.2f",round(qx * 100, 2))) %>% 
+  mutate(pyears = sprintf("%0.1f",round(pyears, 1)),
+         mx = sprintf("%0.1f",round(mx * 1000, 1)),
+         qx = sprintf("%0.1f",round(qx * 1000, 1))) %>% 
   kbl(format = "latex", booktabs = TRUE, row.names = FALSE, linesep = "",
       format.args = list(big.mark = ",", scientific = FALSE), 
       longtable = TRUE, escape = FALSE,
       col.names = c("Years prior to survey", "Age", "Deaths", "Person-years", "$m_x$", "$q(x)$"),
-      caption = "Mortality rates and probabilities of dying for neonatal, 1-59m and under-5 age groups. Mortality rates ($m_x$) are expressed in deaths per 1,000 while probabilities of dying are percentages.") %>%
+      label = "mortrates",
+      caption = "Mortality rates and probabilities of dying for neonatal, 1-59m and under-5 age groups, expressed per 1,000.") %>%
   collapse_rows(columns = 1, valign = "middle")
 
+# Region and res
 reach %>%
   filter(cut_time %in% c("0-4", "5-9", "10-14")) %>%
   mutate(agegrp = factor(agegrp, levels = c("Neonatal", "1to59m", "Under5")),
@@ -207,14 +222,15 @@ reach %>%
   filter(type != "All") %>%
   select(type, byvar, cut_time, agegrp, events, pyears, mx, qx) %>%
   arrange(type, byvar, cut_time, agegrp) %>% 
-  mutate(pyears = sprintf("%0.1f",round(pyears * 1000, 1)),
-         mx = sprintf("%0.2f",round(mx * 1000, 2)),
-         qx = sprintf("%0.2f",round(qx * 100, 2))) %>% 
+  mutate(pyears = sprintf("%0.1f",round(pyears, 1)),
+         mx = sprintf("%0.1f",round(mx * 1000, 1)),
+         qx = sprintf("%0.1f",round(qx * 1000, 1))) %>% 
   kbl(format = "latex", booktabs = TRUE, row.names = FALSE, linesep = "",
       format.args = list(big.mark = ",", scientific = FALSE), 
       longtable = TRUE, escape = FALSE,
+      label = "appendix-fph",
       col.names = c("Variable", "Value","Years prior to survey", "Age", "Deaths", "Person-years", "$m_x$", "$q(x)$"),
-      caption = "Mortality rates and probabilities of dying for neonatal, 1-59m and under-5 age groups. Mortality rates ($m_x$) are expressed in deaths per 1,000 while probabilities of dying are percentages.") %>%
+      caption = "Mortality rates and probabilities of dying for neonatal, 1-59m and under-5 age groups, expressed per 1,000.") %>%
   collapse_rows(columns = 1:3, valign = "middle")
 
 
