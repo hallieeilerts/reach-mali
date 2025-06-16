@@ -11,6 +11,7 @@ library(kableExtra)
 library(ggplot2)
 library(cowplot)
 library(viridis)
+library(lubridate)
 #' Inputs
 dat_filename <- list.files("./gen/fph/audit")
 dat_filename <- dat_filename[grepl("dat_aud-dob1", dat_filename, ignore.case = TRUE)]
@@ -68,9 +69,17 @@ kbl(tab2, format = "latex", booktabs = TRUE, row.names = FALSE, linesep = "",
     caption = "Reporting completeness for DOB")
 
 
-# Missing dob by lb and stb -----------------------------------------------
+# Missing dob by pregnancy outcome ----------------------------------------
 
-aud2 %>%
+subset(aud2, is.na(q223))
+
+tab3 <- aud2 %>%
+  mutate(q223 = case_when(
+    q223 == 1 ~ "Live birth",
+    q223 == 2 ~ "Stillbirth",
+    q223 == 3 ~ "Miscarriage",
+    q223 == 4 ~ "Abortion",
+    TRUE ~ NA_character_)) %>%
   group_by(q223, dob_type) %>%
   summarise(n = n(), .groups = "drop") %>%
   bind_rows(
@@ -82,18 +91,116 @@ aud2 %>%
   pivot_wider(
     names_from = q223,
     values_from = n
-  ) %>%
-  mutate(across(c(`Avortement`, `Fausse-couche`, `Mort né`, `Né vivant`, `NA`),
-                ~ sprintf("%0.1f", round(.x / Total * 100, 1)), 
-                .names = "{.col}_pct"))
+  )
+tab3[is.na(tab3)] <- 0
+# Calculate column totals (excluding the Total column)
+col_totals <- colSums(tab3[ , -1], na.rm = TRUE)  # assuming dob_type is the first column
+# Add percentage columns
+tab3_pct <- tab3
+for (col in names(col_totals)) {
+  tab3_pct[[paste0(col, "_pct")]] <-  round(tab3[[col]] / col_totals[[col]] * 100)
+}
+# Add total row
+total_row <- as.list(col_totals)
+names(total_row) <- names(col_totals)
+# Create 100.0% for each percentage column
+for (col in names(col_totals)) {
+  total_row[[paste0(col, "_pct")]] <- 100
+}
+total_row$dob_type <- "Total"
+# Bind total row to the bottom
+tab3_pct <- bind_rows(tab3_pct, total_row)
+
+tab3_pct %>%
+  mutate(DOB = ifelse(dob_type == "complete", "Complete", "Incomplete")) %>%
+  mutate(DOB = ifelse(dob_type == "Total", "Total", DOB)) %>%
+  mutate(Missing = recode(dob_type,
+                          "missing_ymd" = "Year, month, day",
+                          "missing_md" = "Month, day",
+                          "missing_y" = "Year",
+                          "missing_m" = "Month",
+                          "missing_d" = "Day",
+                          "complete" = "",
+                          "Total" = "")) %>%              
+  select(DOB, Missing, `Live birth`, `Live birth_pct`, Stillbirth, Stillbirth_pct, Miscarriage, Miscarriage_pct,
+         Abortion, Abortion_pct, `NA`, NA_pct, Total, Total_pct) %>% 
+  kbl(format = "latex", booktabs = TRUE, row.names = FALSE, linesep = "",
+      format.args = list(big.mark = ",", scientific = FALSE), 
+      col.names = c("DOB", "Missing", "N", "%", "N", "%", "N", "%", "N", "%","N", "%", "N", "%"), 
+      align = c("l","l", "r", "l","r", "l","r", "l","r", "l","r", "l","r", "l","r", "l"),
+      caption = "Reporting completeness for DOB by pregnancy outcome.")  %>%
+  kable_styling(font_size = 8) %>%
+  add_header_above(c(" " = 2, 
+                     "Live birth" = 2, 
+                     "Stillbirth" = 2, 
+                     "Miscarriage" = 2, 
+                     "Abortion" = 2, 
+                     "NA" = 2,
+                     "Total" = 2))
  
+# Missing dob by pregnancy outcome (figure) -------------------------------
+
+p <- aud2 %>%
+  group_by(q223, dob_type) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  group_by(q223) %>%
+  mutate(total = sum(n),
+         prop = n/total) %>%
+  mutate(q223 = case_when(
+      q223 == 1 ~ "Live birth",
+      q223 == 2 ~ "Stillbirth",
+      q223 == 3 ~ "Miscarriage",
+      q223 == 4 ~ "Abortion",
+      TRUE ~ NA_character_),
+      q223 = factor(
+        q223,
+        levels = c(
+          "Live birth",
+          "Stillbirth",
+          "Miscarriage",
+          "Abortion")
+      )
+    ) %>%
+  mutate(dob_type = factor(dob_type, levels = c("complete", "missing_d", "missing_m", "missing_y","missing_md", "missing_ymd"),
+                           labels = c("Complete", "Missing day",  "Missing month", "Missing year","Missing month & day", "Missing month, year, day"))) %>%
+  ggplot() +
+  geom_bar(aes(x=q223, y = prop, fill = q223), stat = "identity") +
+  labs(y = "Proportion", x = "Pregnancy outcome", title = "Pregnancy outcomes by DOB reporting completeness") +
+  scale_fill_viridis_d(option = "C", na.value = "grey80") +
+  facet_wrap(~dob_type) +
+  theme_bw() +
+  theme(text = element_text(size = 10), title = element_text(size = 8),
+        legend.position = "none",
+        axis.text.x = element_text(angle = 30, hjust = .75))
+ggsave("./gen/fph/figures/dob-reporting-tally-pregout.png", p, dpi = 300, width = 6, height = 4)
+
+# alternative: faceted by pregnancy outcome
+aud2 %>%
+  group_by(q223, dob_type) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  group_by(q223) %>%
+  mutate(total = sum(n),
+         prop = n/total) %>%
+  mutate(q223 = factor(q223, levels = c(1,2,3,4),
+                       labels = c("Live birth", "Stillbirth", "Miscarriage", "Abortion"))) %>%
+  mutate(dob_type = factor(dob_type, levels = c("complete", "missing_d", "missing_m", "missing_y","missing_md", "missing_ymd"),
+                           labels = c("Complete", "Missing day",  "Missing month", "Missing year","Missing month & day", "Missing month, year, day"))) %>%
+  ggplot() +
+  geom_bar(aes(x=dob_type, y = prop, fill = dob_type), stat = "identity") +
+  labs(y = "Proportion", x = "DOB reporting completeness", title = "DOB reporting completeness by pregnancy outcome") +
+  scale_fill_viridis_d(option = "C", na.value = "grey80") +
+  facet_wrap(~q223) +
+  theme_bw() +
+  theme(text = element_text(size = 10), title = element_text(size = 8),
+        legend.position = "none",
+        axis.text.x = element_text(angle = 30, hjust = .75))
 
 
 # Missing dob by year -----------------------------------------------------
 
 nrow(subset(aud2, is.na(q220y))) # 50
-nrow(subset(aud2, !(q216 == "Né vivant"))) # 4823
-nrow(subset(aud2, !(q216 == "Né vivant") & is.na(q220y))) # 1
+nrow(subset(aud2, !(q216 == 1))) # 4823
+nrow(subset(aud2, !(q216 == 1) & is.na(q220y))) # 1
 
 p <- aud2 %>%
   # approximation of tips
@@ -102,18 +209,18 @@ p <- aud2 %>%
   # drops those where tips couldn't be calculated (missing year)
   filter(!is.na(tips)) %>%
   # drop non-live births 
-  filter(q216 == "Né vivant") %>%
+  filter(q223 == 1) %>%
   mutate(tips =factor(tips, levels = c("0-4", "5-9", "10-14", ">15"))) %>%
   group_by(tips, dob_type) %>%
   summarise(n=n()) %>%
   group_by(tips) %>%
   mutate(total = sum(n),
          per = n/total*100) %>%
-  mutate(dob_type = factor(dob_type, levels = c("complete", "missing_md", "missing_m", "missing_d"),
-                           labels = c("Complete", "Missing month & day", "Missing month", "Missing day"))) %>%
+  mutate(dob_type = factor(dob_type, levels = c("complete", "missing_d", "missing_m", "missing_md"),
+                           labels = c("Complete", "Missing day",  "Missing month", "Missing month & day"))) %>%
   ggplot() +
   geom_bar(aes(x=dob_type, y = per, fill = dob_type), stat = "identity") +
-  labs(x = "", y = "Percent", fill="DOB reporting", title = "DOB reporting completeness") +
+  labs(x = "", y = "Percent", fill="DOB reporting", title = "DOB reporting completeness by years prior to survey") +
   facet_wrap(~tips, nrow = 1) +
   scale_y_continuous(limits = c(0,80), expand = c(0, 0)) +
   theme_bw() +
@@ -143,6 +250,43 @@ p <- dat %>%
   theme_bw() +
   theme(text = element_text(size = 10), title = element_text(size = 8))
 ggsave("./gen/fph/figures/heaping-dobd.png", p, dpi = 300, width = 6, height = 3)
+
+# Distribution of day of birth by child age -------------------------------
+
+subset(dat, is.na(v008_dec))
+
+dat %>%  
+  filter(tips != ">15") %>%
+  mutate(tips = factor(tips, levels =  c("0-4", "5-9", "10-14")),
+        dobd = day(dob),
+        age_chld = v008_dec - dob_dec) %>%
+  mutate(age_grp = case_when(
+    age_chld >= 0  & age_chld < 1    ~ "0-1",
+    age_chld >= 1  & age_chld < 5   ~ "1-4",
+    age_chld >= 5  & age_chld < 10   ~ "5-9",
+    age_chld >= 10 & age_chld < 15  ~ "10-14",
+    age_chld >= 15 & age_chld < 20  ~ "15-19",
+    age_chld >= 20 & age_chld < 25  ~ "20-24",
+    age_chld >= 25 & age_chld < 30  ~ "25-29",
+    age_chld >= 30 & age_chld < 35  ~ "30-34",
+    age_chld >= 35 & age_chld < 40  ~ "35+",
+    TRUE ~ NA_character_
+  )) %>%
+  mutate(age_grp = factor(age_grp, levels = c(
+    "0-1", "1-4", "5-9", "10-14", "15-19", "20-24",
+    "25-29", "30-34", "35"
+  ))) %>% 
+  group_by(tips, age_grp, dobd) %>%
+  summarise(n = n()) %>%
+  ggplot() +
+  geom_bar(aes(x = dobd, y = n), stat = "identity", fill = "#0D0887FF") +
+  labs(y = "n", x = "Days", title = "Day of birth heaping") +
+  facet_wrap(~age_grp) +
+  #scale_fill_manual(values = c("#DE4968", "#0D0887FF")) +
+  scale_x_continuous(breaks = c(1, 15, 30)) +
+  guides(fill="none") +
+  theme_bw() +
+  theme(text = element_text(size = 10), title = element_text(size = 8))
 
 
 # Heat map of day/month of birth ------------------------------------------
@@ -190,9 +334,8 @@ p <- dat %>%
 ggsave("./gen/fph/figures/heaping-dobm.png", p, dpi = 300, width = 6, height = 3)
 
 
-# Impossible aad ----------------------------------------------------------
 
-aud3
+# Table reported deaths ---------------------------------------------------
 
 tabdeaths <- dat %>%
   filter(event == 1) %>%
@@ -206,6 +349,66 @@ kbl(tabdeaths, format = "latex", booktabs = TRUE, row.names = FALSE, linesep = "
     format.args = list(big.mark = ",", scientific = FALSE), 
     col.names = c("Years prior to survey", "N"), 
     caption = "Number of reported deaths in REACH-Mali FPH.")
+
+
+# Table deaths and stillbirths --------------------------------------------
+
+tab4 <- dat %>%
+  mutate(q223_aug = case_when(
+    q223_aug == 1 ~ "Live birth",
+    q223_aug == 2 ~ "Stillbirth",
+    q223_aug == 3 ~ "Miscarriage",
+    q223_aug == 4 ~ "Abortion",
+    TRUE ~ NA_character_),
+    q223_aug = factor(
+      q223_aug,
+      levels = c(
+        "Live birth",
+        "Stillbirth",
+        "Miscarriage",
+        "Abortion")
+    )
+  ) %>%
+  filter(q223_aug %in% c("Live birth", "Stillbirth")) %>%
+  group_by(tips, q223_aug, event) %>%
+  summarise(n = n()) %>%
+  filter(!(q223_aug == "Live birth" & event == 0)) %>%
+  select(-event) %>%
+  pivot_wider(
+    names_from = q223_aug,
+    values_from = n
+  )
+# Calculate column totals (excluding the Total column)
+col_totals <- colSums(tab4[ , -1], na.rm = TRUE)  # assuming dob_type is the first column
+# Add percentage columns
+tab4_pct <- tab4
+for (col in names(col_totals)) {
+  tab4_pct[[paste0(col, "_pct")]] <-  round(tab4[[col]] / col_totals[[col]] * 100)
+}
+# Add total row
+total_row <- as.list(col_totals)
+names(total_row) <- names(col_totals)
+# Create 100.0% for each percentage column
+for (col in names(col_totals)) {
+  total_row[[paste0(col, "_pct")]] <- 100
+}
+total_row$tips <- "Total"
+# Bind total row to the bottom
+tab4_pct <- bind_rows(tab4_pct, total_row)
+
+tab4_pct %>%
+  mutate(tips = factor(tips, levels = c("0-4", "5-9", "10-14", ">15", "Total"))) %>%
+  arrange(tips) %>%
+  select(tips, `Live birth`, `Live birth_pct`, Stillbirth, Stillbirth_pct) %>% 
+  kbl(format = "latex", booktabs = TRUE, row.names = FALSE, linesep = "",
+      format.args = list(big.mark = ",", scientific = FALSE), 
+      col.names = c("Years prior to survey", "N", "%", "N", "%"), 
+      align = c("l", "r", "l","r", "l"),
+      caption = "Number of reported deaths and stillbirths in REACH-Mali FPH")  %>%
+  #kable_styling(font_size = 8) %>%
+  add_header_above(c(" " = 1, 
+                     "Deaths" = 2, 
+                     "Stillbirths" = 2))
 
 
 # Distribution of AOD -----------------------------------------------------
@@ -228,7 +431,7 @@ inset_plot <- dat %>%
   filter(event == 1) %>%
   filter(aadd <= 31) %>%
   ggplot() +
-  geom_histogram(aes(aadd), fill = "#0D0887FF", bins = 31, fill = "grey50") +
+  geom_histogram(aes(aadd), fill = "#0D0887FF", bins = 31) +
   labs(y = "", x = "Days") +
   scale_x_continuous(breaks = seq(0, 28, 7)) +
   theme_minimal(base_size = 8) +
@@ -335,10 +538,25 @@ dobcomp <- subset(dat, q220m_imp_ind == 0 & q220d_imp_ind == 0)
 # Pregnancy outcome reporting ---------------------------------------------
 
 tab <- dat %>%
-  group_by(q223) %>%
+  mutate(q223_aug = case_when(
+    q223_aug == 1 ~ "Live birth",
+    q223_aug == 2 ~ "Stillbirth",
+    q223_aug == 3 ~ "Miscarriage",
+    q223_aug == 4 ~ "Abortion",
+    TRUE ~ NA_character_),
+    q223_aug = factor(
+      q223_aug,
+      levels = c(
+        "Live birth",
+        "Stillbirth",
+        "Miscarriage",
+        "Abortion")
+    )
+  ) %>%
+  group_by(q223_aug) %>%
   summarise(n=n())
 total <- sum(tab$n)
-tab <- rbind(tab, data.frame(q223 = "Total", n = total))
+tab <- rbind(tab, data.frame(q223_aug = "Total", n = total))
 tab$per <- sprintf("%0.1f",round(tab$n/total*100, 1))
 
 dat %>%
@@ -349,20 +567,38 @@ dat %>%
 
 kbl(tab, format = "latex", booktabs = TRUE, row.names = FALSE, linesep = "",
     format.args = list(big.mark = ",", scientific = FALSE), 
-    col.names = c("Résultat de la grossesse", "N", "%"), 
+    #col.names = c("Résultat de la grossesse", "N", "%"), 
+    col.names = c("Pregnancy outcome", "N", "%"), 
     caption = "Reporting completeness for pregnancy outcomes")
 
 # Pregnancy outcomes by age distribution of mother ------------------------
 
 p <- dat %>%
+  mutate(q223_aug = case_when(
+    q223_aug == 1 ~ "Live birth",
+    q223_aug == 2 ~ "Stillbirth",
+    q223_aug == 3 ~ "Miscarriage",
+    q223_aug == 4 ~ "Abortion",
+    TRUE ~ NA_character_),
+    q223_aug = factor(
+      q223_aug,
+      levels = c(
+        "Live birth",
+        "Stillbirth",
+        "Miscarriage",
+        "Abortion")
+    )
+  ) %>%
   group_by(agecat_resp, q223_aug) %>%
   summarise(n = n()) %>%
   ggplot() +
   geom_bar(aes(x=q223_aug, y = n, fill = agecat_resp), position = "dodge", stat = "identity") +
   scale_fill_viridis_d(option = "C", name = "Âge")  +
   labs(
-    title = "Résultat de la grossesse selon l’âge des enquêtées",
-    x = "Résultat de la grossesse",
+    #title = "Résultat de la grossesse selon l’âge des enquêtées",
+    #x = "Résultat de la grossesse",
+    title = "Pregnancy outcome by age of respondent",
+    x = "Pregnancy outcome",
     y = "n"
   ) +
   theme_bw() +
@@ -371,4 +607,190 @@ p <- dat %>%
 ggsave("./gen/fph/figures/pregout-byage.png", p, dpi = 300, width = 5, height = 3)
 
 
+# Age-specific preg outcome proportions vs expected -----------------------
+
+# overall age distribution
+age_dist_overall <- dat %>%
+  count(agecat_resp, name = "overall_n") %>%
+  mutate(overall_total = sum(overall_n),
+         overall_prop = overall_n / overall_total)
+
+# age distribution within each outcome
+age_dist_by_outcome <- dat %>%
+  count(q223_aug, agecat_resp, name = "outcome_n") %>%
+  group_by(q223_aug) %>%
+  mutate(outcome_total = sum(outcome_n),
+         outcome_prop = outcome_n / outcome_total) %>%
+  ungroup()
+
+# compare observed vs expected
+age_compare <- left_join(age_dist_by_outcome, age_dist_overall, by = "agecat_resp") %>%
+  mutate(diff = outcome_prop - overall_prop) %>% # positive = overrepresented
+    mutate(q223_aug = case_when(
+      q223_aug == 1 ~ "Né vivant",
+      q223_aug == 2 ~ "Mort né",
+      q223_aug == 3 ~ "Fausse-couche",
+      q223_aug == 4 ~ "Avortement",
+      TRUE ~ NA_character_),
+      q223_aug = factor(
+        q223_aug,
+        levels = c(
+          "Né vivant",
+          "Mort né",
+          "Fausse-couche",
+          "Avortement")
+      )
+    )
+
+# plot observed vs expected proportion in each age group for each outcome
+ggplot(age_compare, aes(x = agecat_resp)) +
+  geom_col(aes(y = overall_prop), fill = "grey80", width = 0.6) +
+  geom_col(aes(y = outcome_prop, fill = agecat_resp), alpha = 0.8, width = 0.4) +
+  facet_wrap(~ q223_aug) +
+  scale_fill_viridis_d(option = "C", name = "Âge") +
+  theme_bw() +
+  labs(
+    y = "Proportion",
+    x = "Groupe d'âge",
+    title = "Distribution des résultats de grossesse selon l’âge des enquêtées",
+    subtitle = "Barre grise = distribution attendue selon la répartition par âge dans l’échantillon total"
+  ) +
+  theme(
+    text = element_text(size = 10),
+    axis.text.x = element_text(angle = 30, hjust = .75)
+  )
+
+
+# legend moved ------------------------------------------------------------
+
+library(tidyverse)
+library(patchwork)
+library(cowplot)
+
+# Split the data into a list by outcome
+age_compare_clean <- age_compare %>%
+  mutate(q223_aug = fct_explicit_na(q223_aug, na_level = "NA"))
+plots_list <- age_compare_clean %>%
+  split(.$q223_aug) %>%
+  map(~ {
+    ggplot(.x, aes(x = agecat_resp)) +
+      geom_col(aes(y = overall_prop), fill = "grey80", width = 0.6) +
+      geom_col(aes(y = outcome_prop, fill = agecat_resp), alpha = 0.8, width = 0.4) +
+      scale_fill_viridis_d(option = "C", name = "Âge") +
+      theme_bw() +
+      labs(title = unique(.x$q223_aug),
+           y = NULL, x = NULL) +
+      theme(legend.position = "none",
+            text = element_text(size = 10), 
+            axis.text.x = element_text(angle = 30, hjust = .75),
+            plot.title = element_text(size = 10))
+  })
+
+# Make a separate plot to extract the legend
+legend_plot <- ggplot(age_compare_clean, aes(x = agecat_resp, fill = agecat_resp)) +
+  geom_bar() +
+  scale_fill_viridis_d(option = "C", name = "Âge") +
+  theme_void() +
+  theme(legend.position = "right")
+
+legend <- get_legend(legend_plot)
+legend_wrapped <- wrap_elements(legend)
+
+# Fill to 6 slots (5 plots + 1 legend)
+while (length(plots_list) < 5) {
+  plots_list <- append(plots_list, list(plot_spacer()))
+}
+
+# Combine all into 2x3 layout
+full_plot <- (plots_list[[1]] + plots_list[[2]] + plots_list[[3]]) /
+  (plots_list[[4]] + plots_list[[5]] + legend_wrapped) +
+  plot_layout(guides = "collect") +
+              plot_annotation(
+                title = "Distribution des résultats de grossesse selon l’âge des enquêtées",
+                subtitle = "Barre grise = distribution attendue selon la répartition par âge dans l’échantillon total", 
+                theme = theme(text = element_text(size = 10), title = element_text(size = 8))
+              )
+
+
+ggsave("./gen/fph/figures/pregout-byage-obsexp.png", full_plot, dpi = 300, width = 6, height = 5)
+
+
+# Births by year of birth -------------------------------------------------
+
+p <- dat %>%
+  mutate(yob = floor(dob_dec)) %>%
+  group_by(yob) %>%
+  summarise(n = n()) %>%
+  ggplot() +
+  geom_bar(aes(x = yob, y = n), stat = "identity", fill = "#0D0887FF") +
+  labs(y = "n", x = "Year", title = "Year of birth") +
+  theme_bw() +
+  theme(text = element_text(size = 10), title = element_text(size = 8))
+ggsave("./gen/fph/figures/births-yob.png", p, dpi = 300, width = 3, height = 2)
+
+# Deaths by year of death -------------------------------------------------
+
+p <- dat %>%
+  filter(event == 1) %>%
+  mutate(yod = year(dod)) %>%
+  group_by(yod) %>%
+  summarise(n = n()) %>%
+  ggplot() +
+  geom_bar(aes(x = yod, y = n), stat = "identity", fill = "#0D0887FF") +
+  labs(y = "n", x = "Year", title = "Year of death") +
+  theme_bw() +
+  theme(text = element_text(size = 10), title = element_text(size = 8))
+ggsave("./gen/fph/figures/deaths-yod.png", p, dpi = 300, width = 3, height = 2)
+
+
+# Combined plots for births and deaths by year ----------------------------
+
+
+# births
+p1 <- dat %>%
+  mutate(yob = floor(dob_dec)) %>%
+  group_by(yob) %>%
+  summarise(n = n()) %>%
+  ggplot() +
+  geom_bar(aes(x = yob, y = n), stat = "identity", fill = "#0D0887FF") +
+  labs(y = "n", x = "Year of birth", title = "Births") +
+  theme_bw() +
+  theme(text = element_text(size = 10), title = element_text(size = 8),
+        legend.position = "bottom",
+        #panel.border = element_blank(),
+        #plot.margin = margin(0, 0, 0, 0),
+        legend.box.background = element_blank(),
+        legend.background = element_blank())
+
+
+# deaths
+p2 <- dat %>%
+  filter(event == 1) %>%
+  mutate(yod = year(dod)) %>%
+  group_by(yod) %>%
+  summarise(n = n()) %>%
+  ggplot() +
+  geom_bar(aes(x = yod, y = n), stat = "identity", fill = "#0D0887FF") +
+  labs(y = "n", x = "Year of death", title = "Deaths") +
+  theme_bw() +
+  theme(text = element_text(size = 10), title = element_text(size = 8),
+        #panel.border = element_blank(),
+        #plot.margin = margin(0, 0, 0, 0),
+        legend.box.background = element_blank(),
+        legend.background = element_blank())
+
+# remove lines that appear between ggarrange
+#p1 <- p1 + theme(plot.margin = margin(0, 0, 0, 0))
+#p2 <- p2 + theme(plot.margin = margin(0, 0, 0, 0))
+
+# Final combined plot
+final_plot <- ggarrange(
+  ggarrange(p1, p2, ncol = 2),
+  nrow = 1,
+  heights = c(1)
+)
+
+# Save the final figure
+ggsave("./gen/fph/figures/fph-births-deaths-byyear.png",
+       final_plot, dpi = 300, width = 6, height = 3)
 
