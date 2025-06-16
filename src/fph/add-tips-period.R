@@ -12,6 +12,8 @@ library(lubridate)
 dat <- readRDS("./gen/fph/temp/fph-impute-dob.rds")
 ################################################################################
 
+nrow(subset(dat, is.na(dob_dec))) # 0 
+nrow(subset(dat, is.na(v008_dec))) # 0
 
 # create time prior to survey for dob
 # rowwise for different breaks by row
@@ -19,16 +21,10 @@ dat <- dat %>%
   rowwise() %>%
   mutate(
     tips = {
-      # Check for missing values
-      if (is.na(dob_dec) | is.na(v008_dec)) {
-        NA_character_
-      } else {
         # Create custom breaks for this row
         breaks <- c(-Inf, v008_dec - 15, v008_dec - 10, v008_dec - 5, Inf)
-        
         as.character(cut(dob_dec, breaks = breaks, labels = c(">15", "10-14", "5-9", "0-4"), include.lowest = TRUE))
       }
-    }
   ) %>%
   ungroup()
 
