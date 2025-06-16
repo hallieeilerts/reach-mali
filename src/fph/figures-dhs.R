@@ -37,7 +37,8 @@ day_counts <- valid_dates %>%
   count(day, name = "frequency") %>%
   mutate(per = frequency/sum(frequency))
 # count frequency of reporting
-# only keep live births as comparing with dhs that are fbh
+# only keep live births
+# DHS data has already been limited to live births (bc also comparing with dhs that are fbh)
 freqdayb <- dat %>%
   filter(tips != ">15") %>%
   filter(q216 == "Né vivant") %>%
@@ -147,8 +148,7 @@ ggsave("./gen/fph/figures/dhs-heaping-aod-12m.png", p2, dpi = 300, width = 6, he
 srb <- dat %>%
   filter(tips != ">15") %>%
   mutate(tips = factor(tips, levels = c("0-4", "5-9", "10-14"))) %>%
-  mutate(q223_num = as.numeric(q223)) %>% # live births only
-  filter(q223_num == 1) %>%
+  filter(q223_aug == 1) %>%
   mutate(q219 = ifelse(q219 == 1, "Garçon", "Fille")) %>%
   group_by(tips, q219) %>%
   summarise(n = n()) %>%
@@ -165,8 +165,7 @@ srb <- dat %>%
 srd <- dat %>%
   filter(tips != ">15") %>%
   mutate(tips = factor(tips, levels = c("0-4", "5-9", "10-14"))) %>%
-  mutate(q223_num = as.numeric(q223)) %>% # live births only
-  filter(q223_num == 1) %>%
+  filter(q223_aug == 1) %>%
   filter(q224 == 2 & aadm >= 0 & aadm < 1) %>% # no longer alive
   mutate(q219 = ifelse(q219 == 1, "Garçon", "Fille")) %>%
   group_by(tips, q219) %>%
