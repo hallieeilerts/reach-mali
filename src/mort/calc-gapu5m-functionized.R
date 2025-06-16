@@ -16,14 +16,22 @@ dat <- readRDS("./gen/fph/output/fph-tips.rds")
 
 #  Set exposure -----------------------------------------------------------
 
+# Only keep live births
+dat <- subset(dat, q223_aug == 1)
+
+# There are no NA's event
+table(dat$event, useNA = "always")
+# When event == 1, aad_unit and aad_value always reported
+nrow(subset(dat, event == 1 & (is.na(aad_unit) | is.na(aad_value))))
+
 # Exposure when date of birth = date of survey 
-dat$select <- dat$event == FALSE & dat$dob_dec == dat$v008_dec
+dat$select <- dat$event == 0 & dat$dob_dec == dat$v008_dec
 set.seed(1)
 dat$expo <- NA
 dat$expo[dat$select == T] <-  0
 
 # Exposure when date of birth != date of survey 
-dat$select <- dat$event == FALSE & dat$dob_dec != dat$v008_dec
+dat$select <- dat$event == 0 & dat$dob_dec != dat$v008_dec
 dat$expo[dat$select == T] <-  dat$v008_dec[dat$select == T] - dat$dob_dec[dat$select == T] 
 
 # Exposure for non-surviving children
@@ -47,6 +55,8 @@ gapu5m_age <- c(7,14, 21, 28,
 
 reach_age <- c(28, 365.25*5)
 
+# exposure is never missing
+nrow(subset(dat, is.na(expo))) # 0
 
 # Entire pop --------------------------------------------------------------
 
@@ -56,6 +66,10 @@ res <- fn_calcmort(dat, ages = gapu5m_age, tips = c(0, 5, 10, 15))
 gapu5m_rates_all_tips <- res$rates
 gapu5m_plot_all_tips <- res$plot
 
+# as.data.frame(subset(gapu5m_rates_all_tips, cut_time == "0-4"))
+# sum(subset(gapu5m_rates_all_tips, cut_time == "0-4")$pyears)
+# sum(subset(gapu5m_rates_all_tips, cut_time == "0-4")$events)
+# subset(gapu5m_rates_all_tips, age_y_up == 5)
 
 # Period
 
@@ -70,6 +84,9 @@ reach_rates_all_tips <- rbind(reach1$rates, reach2$rates)
 reach1 <- fn_calcmort(dat, ages = c(365.25*5), period = c(2010, 2015, 2020, 2025))
 reach2 <- fn_calcmort(dat, ages = c(28, 365.25*5), period = c(2010, 2015, 2020, 2025))
 reach_rates_all_period <- rbind(reach1$rates, reach2$rates)
+
+#as.data.frame(subset(reach1$rates, cut_time == "0-4"))
+
 
 # Residence ---------------------------------------------------------------
 

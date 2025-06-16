@@ -14,6 +14,9 @@ source("./src/utils.R")
 dat <- readRDS("./gen/fph/output/fph-tips.rds")
 ################################################################################
 
+# subset live births
+dat <- subset(dat, q223_aug == 1)
+
 # weights
 dat$v005 <- 1
 dat$death <- dat$event == 1
