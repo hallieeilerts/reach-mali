@@ -27,7 +27,9 @@ nrow(dat) == nrow(dat_unk) + nrow(dat_knw)
 
 # Create variable for end of pregnancy/dob when date is known
 dat_knw$dob <- as.Date(paste(dat_knw$q220y, dat_knw$q220m, dat_knw$q220d, sep = "-"), format = "%Y-%m-%d")
+nrow(subset(dat_knw, is.na(dob))) # 0
 
+# Add columns for recombining 
 dat_knw$q220m_imp_ind <- 0
 dat_knw$q220d_imp_ind <- 0
 dat_knw$q220m_comb <- dat_knw$q220m
@@ -81,7 +83,7 @@ for (i in to_impute) {
       # (iii) if dob year is same as interview, month and day are not after the interview
       limit_check <- !(y == qint_y & m == qint_m & d >= qint_d)
       # (iv) if individual has died, dod is not after interview date
-      dod_check <- if(event == 0){
+      dod_check <- if(is.na(event) | event == 0){
         TRUE
       }else{
           dob <- as.Date(paste(y, m, d, sep = "-"), format = "%Y-%m-%d")
@@ -176,7 +178,7 @@ for (i in to_impute) {
       d <- sample(1:upper_day, 1)
       
       valid_date <- tryCatch({
-        dod_check <- if (event == 0) {
+        dod_check <- if (is.na(event) | event == 0) {
           TRUE
         } else {
           dob <- as.Date(paste(y, m, d, sep = "-"), format = "%Y-%m-%d")
@@ -273,7 +275,7 @@ dat_imp_d %>%
 dat_imp_d %>%
   mutate(dob =  as.Date(paste(q220y, q220m_comb, q220d_comb, sep = "-"), format = "%Y-%m-%d"),
          dod = dob + aadd) %>%
-  filter(event == 1 & dod > qintdate) %>% nrow # 2
+  filter(event == 1 & dod > qintdate) %>% nrow # 3
 # dat_imp_d %>%
 #   mutate(dob =  as.Date(paste(q220y, q220m_comb, q220d_comb, sep = "-"), format = "%Y-%m-%d"),
 #          dod = dob + aadd) %>%
@@ -316,7 +318,7 @@ for (i in to_impute) {
     valid_date <- tryCatch({
       # Check...
       # (i) if individual has died, dod is not after interview date
-      dod_check <- if(event == 0){
+      dod_check <- if(is.na(event) | event == 0){
         TRUE
       }else{
         dob <- as.Date(paste(y, m, d, sep = "-"), format = "%Y-%m-%d")
@@ -377,5 +379,4 @@ dat2$v008_dec <- decimal_date(dat2$qintdate) # v008
 # Save --------------------------------------------------------------------
 
 saveRDS(dat2, "./gen/fph/temp/fph-impute-dob.rds")
-
 
