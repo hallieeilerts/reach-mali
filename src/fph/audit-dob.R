@@ -22,8 +22,6 @@ unique(dat$q220f)  # all NA
 unique(dat$q228c) # all NA
 # Indicateur de date pour Q228C
 unique(dat$q228f) # all NA
-# Âge actuel de l'enfant
-unique(dat$q225)
 
 # Audit of dob - imputed month or day
 n_total <- nrow(dat)
