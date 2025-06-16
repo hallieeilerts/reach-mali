@@ -85,7 +85,7 @@ table(subset(dat, !is.na(q217))$q216, useNA = "always")
 
 # when the pregnacy outcome is missing, is the child still alive
 table(subset(dat, is.na(q223))$q224)
-View(subset(dat, is.na(q223)))
+#View(subset(dat, is.na(q223)))
 
 # Sexe de l'enfant
 table(dat$q219, useNA = "always")
@@ -93,6 +93,13 @@ table(dat$q219, useNA = "always")
 
 # L'enfant est toujours en vie
 table(dat$q224, useNA = "always")
+
+# Age au décès
+subset(dat, q224 == 1 & !is.na(q228))
+# in three cases, ages at death are reported for children who are still alive
+
+# Age at death is never missing when death reported
+subset(dat, q224 == 2 & is.na(q228))
 
 # Durée de grossesse
 table(dat$q221, useNA = "always")
@@ -105,7 +112,6 @@ table(dat$q221n, useNA = "always") # units
 table(dat$q225, useNA = "always")
 table(subset(dat, is.na(q220y) | q220y == 98)$q225, useNA = "always")
 # in two cases this will help
-
 
 # Imputé jour de la naissance/fin de la grossesse
 unique(dat$q220di) # all NA
