@@ -25,7 +25,12 @@ dat_filename <- list.files("./gen/fph/audit")
 dat_filename <- dat_filename[grepl("dat_aud-aad", dat_filename, ignore.case = TRUE)]
 dat_filename <- tail(sort(dat_filename),1) # Most recent
 aud3 <- read.csv(paste0("./gen/fph/audit/", dat_filename))
+aud4tab <- readRDS("./gen/fph/audit/tab_sbh-bth-agreement.rds")
+aud4dat <- readRDS("./gen/fph/audit/dat_aud-sbh-bth-agreement.rds")
+aud5tab <- readRDS("./gen/fph/audit/tab_sbh-dth-agreement.rds")
+aud5dat <- readRDS("./gen/fph/audit/dat_aud-sbh-dth-agreement.rds")
 dat <- readRDS("./gen/fph/output/fph-tips.rds")
+mldhs <- readRDS("./gen/dhs/output/mldhs-bd-tips.rds")
 ################################################################################
 
 # Missing dob -------------------------------------------------------------
@@ -636,7 +641,6 @@ ggsave("./gen/fph/figures/deaths-yod.png", p, dpi = 300, width = 3, height = 2)
 
 # Combined plots for births and deaths by year ----------------------------
 
-
 # births
 p1 <- dat %>%
   mutate(yob = floor(dob_dec)) %>%
@@ -685,3 +689,117 @@ final_plot <- ggarrange(
 ggsave("./gen/fph/figures/fph-births-deaths-byyear.png",
        final_plot, dpi = 300, width = 6, height = 3)
 
+
+# Births/deaths by years prior to survey Mali DHS ---------------------
+
+p <- mldhs %>%
+  filter(!is.na(yob)) %>%
+  group_by(SurveyId, tips_yob) %>%
+  summarise(n = n()) %>%
+  ggplot() +
+  geom_bar(aes(x = tips_yob, y = n), stat = "identity", fill = "#0D0887FF") +
+  facet_wrap(~SurveyId) +
+  labs(y = "n", x = "Year of birth", title = "Births") +
+  theme_bw() +
+  theme(text = element_text(size = 10), title = element_text(size = 8),
+        legend.box.background = element_blank(),
+        legend.background = element_blank())
+ggsave("./gen/fph/figures/mldhs-births-byyear.png", p, dpi = 300, width = 6, height = 4)
+
+p <- mldhs %>%
+  filter(!is.na(yod) & tips_yod <= 0) %>%
+  group_by(SurveyId, tips_yod) %>%
+  summarise(n = n()) %>%
+  ggplot() +
+  geom_bar(aes(x = tips_yod, y = n), stat = "identity", fill = "#0D0887FF") +
+  facet_wrap(~SurveyId) +
+  labs(y = "n", x = "Year of death", title = "Deaths") +
+  theme_bw() +
+  theme(text = element_text(size = 10), title = element_text(size = 8),
+        legend.box.background = element_blank(),
+        legend.background = element_blank())
+ggsave("./gen/fph/figures/mldhs-deaths-byyear.png", p, dpi = 300, width = 6, height = 4)
+
+
+# Agreement between SBH and FPH -------------------------------------------
+
+plota <- aud4dat %>%
+  filter(dif_bth != 0) %>%
+  mutate(facet = "Live births") %>%
+  rename(dif = dif_bth) %>%
+  select(dif, facet)
+plotb <- aud4dat %>%
+  filter(dif_preg != 0) %>%
+  mutate(facet = "Pregnancies") %>%
+  rename(dif = dif_preg) %>%
+  select(dif, facet)
+plot <- rbind(plota, plotb)
+p <- plot %>%
+  ggplot() +
+  geom_histogram(aes(x=dif), fill = "#0D0887FF") +
+  facet_wrap(~facet) +
+  labs(y = "n", x = "Difference, sbh minus fph", title = "Disagreement in SBH and FPH: live births, pregnancies") +
+  theme_bw() +
+  theme(text = element_text(size = 10), title = element_text(size = 8),
+        legend.box.background = element_blank(),
+        legend.background = element_blank())
+ggsave("./gen/fph/figures/fph-sbh-bth-disagreement.png", p, dpi = 300, width = 6, height = 3)
+
+p <- aud5dat %>%
+  filter(dif_dth != 0) %>%
+  ggplot() +
+  geom_histogram(aes(x=dif_dth), fill = "#0D0887FF") +
+  labs(y = "n", x = "Difference, sbh minus fph", title = "Disagreement in SBH and FPH: deaths") +
+  scale_x_continuous(breaks = -5:5) +
+  theme_bw() +
+  theme(text = element_text(size = 10), title = element_text(size = 8),
+        legend.box.background = element_blank(),
+        legend.background = element_blank())
+ggsave("./gen/fph/figures/fph-sbh-dth-disagreement.png", p, dpi = 300, width = 3, height = 3)
+
+# Table of agreement between SBH and FPH ----------------------------------
+
+tabtotal <- data.frame(dif = "Total",
+                       `n_lb` = unique(aud4tab$total),
+                       `per_lb` = "100.0",
+                       n_Pregnancies = unique(aud4tab$total),
+                       per_Pregnancies = "100.0")
+tabaud4 <- aud4tab %>%
+  select(-total) %>%
+  pivot_wider(
+    id_cols = dif,
+    names_from = var,
+    values_from = c(n, per)
+  ) %>%
+  select(dif, `n_Live births`, `per_Live births`, n_Pregnancies, per_Pregnancies) %>%
+  rename(n_lb = `n_Live births`, per_lb = `per_Live births`)
+tabaud4 <- rbind(tabaud4, tabtotal)
+tabaud4 %>%
+  kbl(format = "latex", booktabs = TRUE, row.names = FALSE, linesep = "",
+    format.args = list(big.mark = ",", scientific = FALSE), 
+    col.names = c("Difference (ref: sbh)", "N", "%", "N", "%"), 
+    caption = "Agreement number of live births and pregnancies between SBH and FPH. Difference is calculated with respect to SBH. Negative values indicate more events reported in the FPH than SBH, positive values indicate the reverse. Denominator is all women who took part in the mortality survey. The FPH missing category does not include cases where 0 pregnancies/births were reported in SBH and thus a FPH was not conducted-- these cases were considered to agree.", label = "fph-sbh-bth-agreement") %>%
+    add_header_above(c(" " = 1, 
+                     "Live births" = 2, 
+                     "Pregnancies" = 2))
+
+
+tabtotal <- data.frame(dif = "Total",
+                       n_Deaths = unique(aud5tab$total),
+                       per_Deaths = "100.0")
+tabaud5 <- aud5tab %>%
+  select(-total) %>%
+  pivot_wider(
+    id_cols = dif,
+    names_from = var,
+    values_from = c(n, per)
+  )
+tabaud5 <- rbind(tabaud5, tabtotal)
+tabaud5 <- rbind(tabaud5, tabtotal)
+tabaud5 %>%
+  kbl(format = "latex", booktabs = TRUE, row.names = FALSE, linesep = "",
+      format.args = list(big.mark = ",", scientific = FALSE), 
+      col.names = c("Difference (ref: sbh)", "N", "%"), 
+      caption = "Agreement number of deaths between SBH and FPH. Difference is calculated with respect to SBH. Negative values indicate more events reported in the FPH than SBH, positive values indicate the reverse. Denominator is all women who took part in the mortality survey. The FPH missing category does not include cases where 0 pregnancies/births were reported in SBH and thus a FPH was not conducted-- these cases were considered to agree.", label = "fph-sbh-dth-agreement") %>%
+  add_header_above(c(" " = 1, 
+                     "Deaths" = 2))
