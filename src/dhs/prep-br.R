@@ -15,6 +15,9 @@ l_br <- readRDS("./data/dhs/br.rds")
 sample <- read.csv("./gen/dhs/output/surveys-ctry-regions.csv")
 ################################################################################
 
+# keep Mali dhs
+l_br_ml <- l_br[grepl("ML", names(l_br))]
+
 # keep only surveys in sample (>=2015 and don't have a fph)
 v_samp <- subset(sample, incl_br == 1)$SurveyId
 l_br_samp <- l_br[names(l_br) %in% v_samp]
@@ -22,14 +25,17 @@ rm(l_br)
 
 # Create age at death
 l_br_samp <- lapply(l_br_samp, fn_gen_aad)
+l_br_ml <- lapply(l_br_ml, fn_gen_aad)
 
 # Create time prior to survey and period variables
 l_br_samp <- lapply(l_br_samp, fn_gen_tips)
+l_br_ml <- lapply(l_br_ml, fn_gen_tips)
 
 # Create sex of child variable
 l_br_samp <- lapply(l_br_samp, fn_gen_childsex)
+l_br_ml <- lapply(l_br_ml, fn_gen_childsex)
 
 # Save output(s) ----------------------------------------------------------
 
 saveRDS(l_br_samp, "./gen/dhs/temp/br-prep.rds")
-
+saveRDS(l_br_ml, "./gen/dhs/temp/br-ml.rds")
