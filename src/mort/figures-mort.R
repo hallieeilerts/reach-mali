@@ -12,6 +12,7 @@ library(ggplot2)
 library(viridis)
 library(scales)
 library(cowplot)
+library(ggpubr)
 #' Inputs
 gap <- readRDS("./gen/mort/output/gapu5m-for-plots.rds")
 reach <- readRDS("./gen/mort/output/reach-rates.rds")
@@ -198,17 +199,17 @@ reach %>%
          agegrp = factor(agegrp, levels = c("Neonatal", "1to59m", "Under5"),
                          labels = c("Neonatal", "1-59m", "Under-5"))) %>%
   filter(type == "All") %>%
-  select(cut_time, agegrp, events, pyears, mx, qx) %>%
+  select(cut_time, agegrp, qx) %>% #  events, pyears, mx,
   arrange(cut_time, agegrp) %>% 
-  mutate(pyears = sprintf("%0.1f",round(pyears, 1)),
-         mx = sprintf("%0.1f",round(mx * 1000, 1)),
+  mutate(#pyears = sprintf("%0.1f",round(pyears, 1)),
+         #mx = sprintf("%0.1f",round(mx * 1000, 1)),
          qx = sprintf("%0.1f",round(qx * 1000, 1))) %>% 
   kbl(format = "latex", booktabs = TRUE, row.names = FALSE, linesep = "",
       format.args = list(big.mark = ",", scientific = FALSE), 
       longtable = TRUE, escape = FALSE,
-      col.names = c("Years prior to survey", "Age", "Deaths", "Person-years", "$m_x$", "$q(x)$"),
+      col.names = c("Years prior to survey", "Age",  "$q(x)$"), # "Deaths", "Person-years", "$m_x$",
       label = "mortrates",
-      caption = "Mortality rates and probabilities of dying for neonatal, 1-59m and under-5 age groups, expressed per 1,000.") %>%
+      caption = "Probabilities of dying for neonatal, 1-59m and under-5 age groups, expressed per 1,000 live births.") %>%
   collapse_rows(columns = 1, valign = "middle")
 
 # Region and res
@@ -220,17 +221,15 @@ reach %>%
          agegrp = factor(agegrp, levels = c("Neonatal", "1to59m", "Under5"),
                          labels = c("Neonatal", "1-59m", "Under-5"))) %>%
   filter(type != "All") %>%
-  select(type, byvar, cut_time, agegrp, events, pyears, mx, qx) %>%
+  select(type, byvar, cut_time, agegrp, qx) %>%
   arrange(type, byvar, cut_time, agegrp) %>% 
-  mutate(pyears = sprintf("%0.1f",round(pyears, 1)),
-         mx = sprintf("%0.1f",round(mx * 1000, 1)),
-         qx = sprintf("%0.1f",round(qx * 1000, 1))) %>% 
+  mutate(qx = sprintf("%0.1f",round(qx * 1000, 1))) %>% 
   kbl(format = "latex", booktabs = TRUE, row.names = FALSE, linesep = "",
       format.args = list(big.mark = ",", scientific = FALSE), 
       longtable = TRUE, escape = FALSE,
       label = "appendix-fph",
-      col.names = c("Variable", "Value","Years prior to survey", "Age", "Deaths", "Person-years", "$m_x$", "$q(x)$"),
-      caption = "Mortality rates and probabilities of dying for neonatal, 1-59m and under-5 age groups, expressed per 1,000.") %>%
+      col.names = c("Variable", "Value","Years prior to survey", "Age", "$q(x)$"),
+      caption = "Probabilities of dying for neonatal, 1-59m and under-5 age groups, expressed per 1,000 live births.") %>%
   collapse_rows(columns = 1:3, valign = "middle")
 
 
