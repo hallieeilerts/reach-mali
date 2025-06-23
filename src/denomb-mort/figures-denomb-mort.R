@@ -11,11 +11,13 @@ library(ggplot2)
 #' Inputs
 qhhsecover <- read.csv("./data/reach_mortalite_denomb_qhhsecover.csv")
 qhsec01 <- read.csv("./data/reach_mortalite_denomb_qhsec01xx.csv")
+#mortsurv <- readRDS("./gen/sec01/output/qsecover-qwsec01.rds")
 ################################################################################
 
 nrow(qhhsecover) # 10230
 nrow(qhsec01) #  119027
 
+# household information
 dat_hhdid <- qhhsecover %>%
   select(level_1_id, qhhi1, qhhli1, qhhi2, qhhli2, qhhdistrict, qhhli3, qhhi3, idse, qhhi4, qhhi5, hhi7) %>%
   rename(hhd_id      = level_1_id,
@@ -31,6 +33,7 @@ dat_hhdid <- qhhsecover %>%
          team         = hhi7
   )
 
+# age/sex information for individuals
 dat_hhdrost <- qhsec01 %>%
   select(level_1_id, qhh01x, qhh03x, qhh04x, qhh05x) %>%
   rename(hhd_id    = level_1_id,
@@ -60,8 +63,6 @@ dat_hhdrost <- qhsec01 %>%
   ))
 
 dat <- merge(dat_hhdid, dat_hhdrost, by="hhd_id", all.y=T)
-
-
 
 p <- dat %>%
   filter(sex == "Female") %>%
