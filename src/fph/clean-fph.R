@@ -46,6 +46,20 @@ dat$q223_aug[is.na(dat$q223) & dat$q218 == "AVORTEMENT" &
               (is.na(dat$q221u) | (dat$q221u == 2 & dat$q221n < 8)))] <- 4
 table(dat$q223_aug, useNA = "always")
 
+# fill in q223_aug with q216 (first reported pregnancy result) when it is missing
+# make sure that the record has q224 reported (whether child is still alive) if q216 is a live birth
+nrow(subset(dat, is.na(q223_aug))) # 336
+nrow(subset(dat, is.na(q223_aug) & !is.na(q216))) # 301
+dat$q223_aug[is.na(dat$q223) & !is.na(dat$q216) & !(dat$q216 == 1 & is.na(dat$q224))] <- dat$q216[is.na(dat$q223) & !is.na(dat$q216)& !(dat$q216 == 1 & is.na(dat$q224))]
+nrow(subset(dat, is.na(q223_aug))) # 320
+# this only helped fill in 336-320
+# most of the time when q223 is missing and q216 is reported the record is still missing crucial values like q224
+# so not worth filling these ones in
+# View(subset(dat, is.na(q223_aug) & !is.na(q216)))
+
+# The ones that still have missing pregnancy outcomes have missing in almost all other variables
+sum(subset(dat, is.na(q223_aug))$q224, na.rm = TRUE) # q224 is child still alive, 0
+
 # if child is reported as still alive (q224 == 1), age at death (q228) should be NA
 nrow(subset(dat, q224 == 1 & !is.na(q228))) # 3
 # Recode q228 as NA if the child is still alive
@@ -75,6 +89,9 @@ nrow(subset(dat, q224 == 2 & q223_aug != 1)) # 0
 nrow(subset(dat, q224 == 1 & q223_aug != 1)) # 0 
 # and pregnancy outcome is always not a live birth when the child still alive question wasn't asked
 table(subset(dat, is.na(q224))$q223_aug) # 0 
+nrow(subset(dat, is.na(q224) & q223_aug == 1)) # 0
+# remember q223_aug is still missing in 320 cases
+nrow(subset(dat, is.na(q223_aug))) # 320
 
 # check if age of death is (q228) is ever missing when units of age at death (q228u) are reported
 nrow(subset(dat, is.na(q228) & !is.na(q228u))) # 2
