@@ -13,8 +13,8 @@ library(ggpubr)
 #' Inputs
 source("./src/utils.R")
 dat <- readRDS("./gen/sbh/temp/sbh-qsecover-qwsec01.rds")
+dhs <- readRDS("./gen/dhs/output/mldhs-sbh.rds")
 ################################################################################
-
 
 # Children born by respondent age -----------------------------------------
 
@@ -57,6 +57,57 @@ dat %>%
   theme(text = element_text(size = 10), title = element_text(size = 8))
 
 # Figure~\ref{fig:sbh-children-born-byage} shows the total number of children born by respondent age. In the summary birth history, this is a sum of reported children living with the respondent, living elsewhere, and deceased. It does not include pregnancy losses or stillbirths (unless reported as part of children deceased). The distribution looks reasonable with the vast majority of respondents aged 15-19 having only 1 birth, and the distributions gradually shifting rightward with age, reflecting higher parity among older respondents.
+
+
+# Table for children born, surviving --------------------------------------
+
+# q208 is total children born
+# q203_comb is total living at home
+# q205_comb is total living elsewhere
+# q207_comb is total died
+dat %>%
+  group_by(agecat_resp) %>%
+  summarise(avg_total = sprintf("%0.2f", round(mean(q208), 2)),
+            avg_surv = sprintf("%0.2f", round(mean(q203_comb + q205_comb), 2)),
+            avg_died = sprintf("%0.2f", round(mean(q207_comb), 2)))  %>%
+  kbl(format = "latex", booktabs = TRUE, row.names = FALSE, linesep = "",
+      format.args = list(big.mark = ",", scientific = FALSE), 
+      col.names = c("Mother age", "Ever born", "Surviving", "Died"), 
+      label = c("sbh-avgn"),
+      caption = "Average children ever born, surviving, and died by age of mother.") 
+
+
+
+# SBH averages compared with other DHS ------------------------------------
+
+p <- dat %>%
+  group_by(agecat_resp) %>%
+  summarise(avg_total = sprintf("%0.2f", round(mean(q208), 2)),
+            avg_surv = sprintf("%0.2f", round(mean(q203_comb + q205_comb), 2)),
+            avg_died = sprintf("%0.2f", round(mean(q207_comb), 2))) %>% 
+  mutate(source = "REACH-Mali") %>% 
+  bind_rows(dhs) %>%
+  pivot_longer(
+    cols = c(avg_total, avg_surv, avg_died)
+  ) %>%
+  mutate(value = as.numeric(as.character(value)),
+         name = case_when(
+           name == "avg_total" ~ "Ever born",
+           name == "avg_surv" ~ "Surviving",
+           name == "avg_died" ~ "Died"
+         ),
+         name = factor(name, levels = c("Ever born", "Surviving", "Died"))) %>%
+  ggplot() +
+  geom_bar(aes(x=agecat_resp, y = value, fill = source), stat = "identity", position = "dodge") +
+  facet_wrap(~name) +
+  labs(y = "Mean", x = "Age", title = "Average children ever born, surviving, and died by age of mother") +
+  theme_bw() +
+  theme(text = element_text(size = 10), title = element_text(size = 8),
+        axis.text.x = element_text(angle = 30, hjust = .75),
+        legend.title = element_blank())
+
+# Save the final figure
+ggsave("./gen/sbh/figures/sbh-dhs-ceb.png", p, dpi = 300, width = 6, height = 3)
 
 
 # Proportion of children ever born/died by age of mother ------------------
@@ -380,7 +431,7 @@ p2 <- dat %>%
 
 # Title as a plot
 title_plot <- as_ggplot(text_grob(
-  "Nombre total d'enfants (a) décédés et (b) naissances non vivantes selon l’âge des enquêtées",
+  "Nombre total d'enfants (a) décédés et (b) pertes de grossesse selon l’âge des enquêtées",
   size = 10, just = "center"
 )) +
   theme(
