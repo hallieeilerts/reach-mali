@@ -28,9 +28,13 @@ dat <- dat %>%
   rowwise() %>%
   mutate(q203_comb = sum(q203a, q203b, na.rm = TRUE), # sons living at home, daughters living at home
          q205_comb = sum(q205a, q205b, na.rm = TRUE), # sons living elsewhere, daughters living elsewhere
-         q207_comb = sum(q207a, q207b, na.rm = TRUE), # sons died, daughters died
-         q207_comb = ifelse(!is.na(q206) & q206 == 1 & q207_comb == 0, NA, q207_comb))
-# Recode children died to NA if it is reported that a child has died (q206) but q207_comb is zero
+         q207_comb = sum(q207a, q207b, na.rm = TRUE)) # sons died, daughters died
+# q207_comb = ifelse(!is.na(q206) & q206 == 1 & q207_comb == 0, NA, q207_comb)
+# the above line will recode children died to NA if it is reported that a child has died (q206) but q207_comb is zero
+# choosing not to do this.
+nrow(subset(dat, is.na(q203_comb))) # 0
+nrow(subset(dat, is.na(q205_comb))) # 0
+nrow(subset(dat, is.na(q207_comb))) # 0
 
 # Add up birth and pregnancy totals
 dat <- dat %>%
