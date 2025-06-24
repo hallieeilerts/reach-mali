@@ -9,10 +9,25 @@ library(tidyr)
 library(dplyr)
 library(purrr)
 library(survival)
+library(readxl)
 #' Inputs
 source("./src/utils.R")
 dat <- readRDS("./gen/fph/output/fph-tips.rds")
+# sampling weights
+wt <- read_excel("./data/instat/Poids_Enquete_Base_Mortalite.xlsx", sheet = "Poidsvf")
 ################################################################################
+
+wt <- wt[, c("GRAPPE", "Poids normalisé des femmes de 15-49 ans")]
+names(wt) <- c("grappe", "wt")
+wt$grappe <- as.numeric(wt$grappe)
+
+
+# Merge on weights --------------------------------------------------------
+
+nrow(dat)
+dat <- merge(dat, wt, by = "grappe")
+nrow(dat)
+# all have weights
 
 #  Set exposure -----------------------------------------------------------
 
@@ -70,6 +85,7 @@ gapu5m_plot_all_tips <- res$plot
 # sum(subset(gapu5m_rates_all_tips, cut_time == "0-4")$pyears)
 # sum(subset(gapu5m_rates_all_tips, cut_time == "0-4")$events)
 # subset(gapu5m_rates_all_tips, age_y_up == 5)
+# as.data.frame(subset(gapu5m_rates_all_tips, cut_time == "0-4" & age_y_up == 5))
 
 # Period
 
