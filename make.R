@@ -80,6 +80,7 @@ source("./src/fph/figures-dhs.R", local = new.env())
 
 #source("./src/mort/calc-gapu5m.R", local = new.env())
 source("./src/mort/calc-gapu5m-functionized.R", local = new.env())
+source("./src/mort/calc-gapu5m-jackknife.R", local = new.env())
 source("./src/mort/calc-demogsurv.R", local = new.env())
 source("./src/mort/calc-dhsrates.R", local = new.env())
 source("./src/mort/compare-methods.R", local = new.env())
