@@ -359,6 +359,21 @@ fn_aad_flag <- function(x, module = "BR"){
 
 # Mortality calculations --------------------------------------------------
 
+# Add rows for plotting Qx and mx
+fn_addrows <- function(x, uncertainty = FALSE){
+  firstrow <- x[1, ]
+  firstrow$Qx <- 0
+  if(uncertainty){
+    firstrow$Qx_lower <- 0
+    firstrow$Qx_upper <- 0
+  }
+  firstrow$age_y <- 0
+  lastrow <- x[nrow(x),]
+  lastrow$age_y <- 5
+  x <- rbind(firstrow, x, lastrow)
+  return(x)
+}
+
 fn_calcmort <- function(dat, ages, period = NULL, tips = NULL){
   
   # x data with dob_dec, event, expo
@@ -383,7 +398,7 @@ fn_calcmort <- function(dat, ages, period = NULL, tips = NULL){
   
   # function that computes deaths and person-years for the defined periods and age group (use weight variable)
   # pyears(surv ~ year + age, weights = tmp$v005/1000000, scale = 1, data.frame = TRUE)
-  calcpyears <- pyears(Surv(time = expo, event = event, type = "right") ~ cut_time + cut_age, scale = 1, dat, data.frame = TRUE)
+  calcpyears <- pyears(Surv(time = expo, event = event, type = "right") ~ cut_time + cut_age, weights = wt, scale = 1, dat, data.frame = TRUE)
   PY <- calcpyears[[2]]
   PY <- PY[order(PY$cut_time, PY$cut_age),]
   
@@ -450,16 +465,6 @@ fn_calcmort <- function(dat, ages, period = NULL, tips = NULL){
     full_join(df_events, by = c("cut_time", "age_d")) %>%
     arrange(cut_time, age_d)
   
-  # Add plot rows
-  fn_addrows <- function(x){
-    firstrow <- x[1, ]
-    firstrow$Qx <- 0
-    firstrow$age_y <- 0
-    lastrow <- x[nrow(x),]
-    lastrow$age_y <- 5
-    x <- rbind(firstrow, x, lastrow)
-    return(x)
-  }
   # Apply plot rows, grouped by year
   df_plot <- df_rates %>%
     group_split(cut_time) %>%       # split into list of data frames by year
@@ -628,3 +633,113 @@ val <- data.frame(dfmm$df, estdf)
 val
 }
 
+# Jackknife ---------------------------------------------------------------
+
+fn_jackknife_mort <- function(dat, ages, period = NULL, tips = NULL, 
+                                     cluster_var = "grappe", strata_var = "strate",
+                                     return_replicates = FALSE, verbose = TRUE) {
+  # ages = gapu5m_age
+  # ages = gapu5m_age
+  # tips = c(0, 5, 10, 15)
+  # cluster_var = "grappe"
+  # strata_var = "strate"
+  # period = NULL
+  # return_replicates = TRUE
+  # verbose = TRUE
+  
+  dat <- dat %>%
+    mutate(cluster = !!sym(cluster_var),
+           strata = !!sym(strata_var))
+  
+  strata_clusters <- dat %>%
+    distinct(strata, cluster) %>%
+    group_by(strata) %>%
+    summarise(clusters = list(unique(cluster)), .groups = "drop")
+  
+  if (verbose) message("Calculating full-sample estimates...")
+  
+  point_est <- fn_calcmort(dat, ages = ages, period = period, tips = tips)$rates %>%
+    select(cut_time, age_y, age_y_up, age_d, age_d_up, n_d, mx, qx, Qx) %>%
+    rename(mx_full = mx, qx_full = qx, Qx_full = Qx)
+  
+  if (verbose) message("Running jackknife replicates...")
+  
+  jack_estimates <- map_dfr(1:nrow(strata_clusters), function(i) {
+    stratum <- strata_clusters$strata[i]
+    clusts <- strata_clusters$clusters[[i]]
+    n_clust <- length(clusts)
+    
+    map_dfr(seq_along(clusts), function(j) {
+      clust_drop <- clusts[j]
+      if (verbose) message("Stratum: ", stratum, " | Dropping cluster: ", clust_drop)
+      
+      dat_jk <- dat %>% filter(!(strata == stratum & cluster == clust_drop))
+      
+      jk_rates <- tryCatch({
+        fn_calcmort(dat_jk, ages = ages, period = period, tips = tips)$rates %>%
+          select(cut_time, age_y, age_y_up, age_d, age_d_up, n_d, mx, qx, Qx) %>%
+          mutate(strata = stratum, replicate = j, n_clust = n_clust, cluster_dropped = clust_drop)
+      }, error = function(e) {
+        if (verbose) message("Error in replicate (stratum: ", stratum, ", cluster: ", clust_drop, ")")
+        NULL
+      })
+      
+      return(jk_rates)
+    })
+  })
+  
+  if (verbose) message("Merging replicate estimates with full-sample estimates...")
+  
+  jack_combined <- jack_estimates %>%
+    left_join(point_est, by = c("cut_time", "age_y", "age_y_up", "age_d", "age_d_up", "n_d"))
+  
+  # Check which groups are missing mx_full after join
+  missing_full <- jack_combined %>%
+    filter(is.na(mx_full) | is.na(qx_full) | is.na(Qx_full))
+  
+  if (nrow(missing_full) > 0) {
+    warning("Some replicates did not match full-sample estimates. Removing ", nrow(missing_full), " unmatched rows.")
+  }
+  
+  # Remove rows where full-sample values are missing
+  jack_combined <- jack_combined %>%
+    filter(!is.na(mx_full) & !is.na(qx_full) & !is.na(Qx_full))
+  
+  if (verbose) message("Calculating jackknife variances...")
+  
+  jack_var <- jack_combined %>%
+    group_by(cut_time, age_y, age_y_up, age_d, age_d_up, n_d, strata) %>%
+    summarise(
+      mx_full = first(mx_full),
+      qx_full = first(qx_full),
+      Qx_full = first(Qx_full),
+      var_mx = (first(n_clust) - 1) / first(n_clust) * sum((mx - mx_full)^2, na.rm = TRUE),
+      var_qx = (first(n_clust) - 1) / first(n_clust) * sum((qx - qx_full)^2, na.rm = TRUE),
+      var_Qx = (first(n_clust) - 1) / first(n_clust) * sum((Qx - Qx_full)^2, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    group_by(cut_time, age_y, age_y_up, age_d, age_d_up, n_d) %>%
+    summarise(
+      mx = first(mx_full),
+      qx = first(qx_full),
+      Qx = first(Qx_full),
+      mx_se = sqrt(sum(var_mx, na.rm = TRUE)),
+      qx_se = sqrt(sum(var_qx, na.rm = TRUE)),
+      Qx_se = sqrt(sum(var_Qx, na.rm = TRUE)),
+      .groups = "drop"
+    ) %>%
+    mutate(
+      mx_lower = pmax(0, mx - 1.96 * mx_se),
+      mx_upper = mx + 1.96 * mx_se,
+      qx_lower = pmax(0, qx - 1.96 * qx_se),
+      qx_upper = pmin(1, qx + 1.96 * qx_se),
+      Qx_lower = pmax(0, Qx - 1.96 * Qx_se),
+      Qx_upper = pmin(1, Qx + 1.96 * Qx_se)
+    )
+  
+  if (return_replicates) {
+    return(list(estimates = jack_var, replicates = jack_combined))
+  } else {
+    return(list(estimates = jack_var, replicates = NULL))
+  }
+}
