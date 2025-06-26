@@ -11,12 +11,31 @@ library(dplyr)
 dat <- readRDS("./gen/fph/temp/fph-clean-aod.rds")
 ################################################################################
 
+# lots of deaths have missing dob months or days (or both)
+nrow(subset(dat, !is.na(aadd))) # 6911
+nrow(subset(dat, !is.na(aadd) & is.na(q220y) | q220y == 98)) # 0
+nrow(subset(dat, !is.na(aadd) & is.na(q220m) | q220m == 98)) # 21075
+nrow(subset(dat, !is.na(aadd) & is.na(q220d) | q220d == 98)) # 24174
+nrow(subset(dat, !is.na(aadd) & (is.na(q220d) | q220d == 98) & (is.na(q220m) | q220m == 98))) # 2800
+
+# this is plotting just those dates that are valid
+dat %>%
+  filter(!is.na(aadd)) %>%
+  mutate(dob = as.Date(paste(q220y, q220m, q220d, sep = "-"), format = "%Y-%m-%d"),
+         dod = dob + aadd) %>%
+  mutate(yod_fl = floor(decimal_date(dod))) %>%
+  group_by(yod_fl) %>%
+  summarise(n = n()) %>%
+  ggplot() +
+  geom_bar(aes(x=yod_fl, y=n), stat = "identity")
+# all looks as expected with tapering off by 2025
+
 # DOB/end of pregnancy
 unique(dat$q220d)
 unique(dat$q220m)
 unique(dat$q220y)
 
-# Have already dropped those with missing year
+# Have already dropped those with missing year of birth or pregnancy outcomes, and impossible ages at death
 
 # Subset unknown month or day
 dat_unk <- subset(dat, is.na(q220d) | q220d == 98 | is.na(q220m) | q220m == 98)
@@ -52,6 +71,7 @@ to_impute <- which(
     !is.na(dat_unk$q220d) & dat_unk$q220d != 98
 )
 dat_unk$q220m_imp <- NA_integer_
+length(to_impute) # 528
 
 for (i in to_impute) {
 
@@ -79,8 +99,8 @@ for (i in to_impute) {
       # Check...
       # (i) day is valid within month
       day_check <- d <= days_in_month(ymd(sprintf("%04d-%02d-01", y, m)))
-      # (ii) dob year is same as interview, that month is not after
-      # (iii) if dob year is same as interview, month and day are not after the interview
+      # (ii) dob year is same as interview, that month is not after (already constrained this with upper_month sampling)
+      # (iii) if dob year is same as interview, month/day combo are not after the interview
       limit_check <- !(y == qint_y & m == qint_m & d >= qint_d)
       # (iv) if individual has died, dod is not after interview date
       dod_check <- if(is.na(event) | event == 0){
@@ -123,6 +143,17 @@ check %>%
          dod = dob + aadd) %>%
   filter(dod > qintdate) %>% nrow # 0
 
+# still looks good
+dat_unk %>%
+  filter(!is.na(aadd)) %>% 
+  mutate(dob = as.Date(paste(q220y, q220m_comb, q220d, sep = "-"), format = "%Y-%m-%d"),
+         dod = dob + aadd) %>%
+  mutate(yod_fl = floor(decimal_date(dod))) %>%
+  group_by(yod_fl) %>%
+  summarise(n = n()) %>%
+  ggplot() +
+  geom_bar(aes(x=yod_fl, y=n), stat = "identity")
+
 # Missing DOB month and day -----------------------------------------------
 
 # For individuals with a missing month and day, 
@@ -135,6 +166,7 @@ check %>%
 to_impute <- which(
   (is.na(dat_unk$q220m) | dat_unk$q220m == 98) & (is.na(dat_unk$q220d) | dat_unk$q220d == 98)
 )
+length(to_impute) # 20549
 
 dat_unk$q220m_imp <- NA_integer_
 dat_unk$q220d_imp <- NA_integer_
@@ -234,6 +266,24 @@ check %>%
   mutate(dob =  as.Date(paste(q220y, q220m_comb, q220d_comb, sep = "-"), format = "%Y-%m-%d"),
          dod = dob + aadd) %>%
   filter(event == 1 & dod > qintdate) %>% nrow # 0
+
+# THIS IS THE STEP THAT PUTS TOO MANY DEATHS IN 2025
+dat_unk %>%
+  filter(!is.na(aadd)) %>% 
+  mutate(dob = as.Date(paste(q220y, q220m_comb, q220d_comb, sep = "-"), format = "%Y-%m-%d"),
+         dod = dob + aadd) %>%
+  mutate(yod_fl = floor(decimal_date(dod))) %>%
+  group_by(yod_fl) %>%
+  summarise(n = n()) %>%
+  ggplot() +
+  geom_bar(aes(x=yod_fl, y=n), stat = "identity")
+dat_unk %>% 
+  mutate(dob = as.Date(paste(q220y, q220m_comb, q220d_comb, sep = "-"), format = "%Y-%m-%d"),
+         dod = dob + aadd) %>%
+  mutate(yod_fl = floor(decimal_date(dod))) %>%
+  filter(yod_fl == 2025) %>%
+  select(q220y, q220m, q220d, q228, q228_clean, q228u, q228n, aad_unit, aad_value, aady, aadm, aadd,
+         q220m_imp, q220d_imp, dob, dod, yod_fl)
 
 # Missing DOB day, reported month -----------------------------------------
 
@@ -369,12 +419,30 @@ dat2 <- dat2 %>%
 
 nrow(subset(dat2, dod > qintdate)) # 0
 
-nrow(dat2) # 79785
+nrow(dat2) # was 79785. now 79763 that i've dropped those missing preg outcomes (as well as those missing yob and with impossible aad)
 
 # Add decimal dates
 dat2$dob_dec <- decimal_date(dat2$dob) # b3
-dat2$dod_dec <- dat2$dob_dec + dat2$aady
 dat2$v008_dec <- decimal_date(dat2$qintdate) # v008
+dat2$dod_dec <- decimal_date(dat2$dod)
+
+nrow(subset(dat2, dod_dec > v008_dec)) # 0
+nrow(subset(dat2, dob_dec > v008_dec)) # 0
+
+# there are many deaths in 2024 and 2025
+# this could result from a few things...
+# (i) corrections to impossible ages at death moved deaths occurring after the interview to right before it
+# (ii) in the imputation of date of birth, i make sure the date of birth is possible, which includes a check making sure the dod is not after the interview date
+# this could create some bias towards acceptable DOBs where the date of death is right before the interview date
+dat2 %>%
+  filter(!is.na(dod_dec)) %>%
+  mutate(yod_fl = floor(dod_dec)) %>%
+  group_by(yod_fl) %>%
+  summarise(n = n()) %>%
+  ggplot() +
+  geom_bar(aes(x=yod_fl, y = n), stat = "identity")
+nrow(subset(dat2, !is.na(aadd))) # 6911
+
 
 # Save --------------------------------------------------------------------
 
