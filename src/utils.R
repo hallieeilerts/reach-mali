@@ -479,7 +479,111 @@ fn_calcmort <- function(dat, ages, period = NULL, tips = NULL){
   
 }
 
+fn_calcmort_dhs <- function(dat, ages, period = NULL, tips = NULL){
+  
 
+  # dat <- l_data$ML2001DHS
+  # ages <- gapu5m_age 
+  # tips <- c(0, 5, 10, 15)
+  # period <- NULL
+  
+  if(!is.null(tips)){
+    dat$cut_time <- tcut(dat$b3_d - dat$v008_d, -rev(tips)*12, labels = rev(.epis_labels(tips)))
+  }
+  if(!is.null(period)){
+    dat$cut_time <- tcut(dat$dob_dec, period, labels = rev(.epis_labels(period)))
+  }
+  
+  # "startage" sets the age at entry time (that is birth), so it is 0
+  dat$startage <- 0
+  
+  # define age groups in weeks and months (but expressed in years) and labels (expressed in days)
+  agecut <-  c(0,7,14, 21, 28, seq(60.8750, 365.25*5,  30.4375))/365.25
+  agecutlab <- as.character(agecut[1:(length(agecut)-1)]*365.25)
+  dat$cut_age <- tcut(dat$startage, agecut, labels = agecutlab)
+  
+  # function that computes deaths and person-years for the defined periods and age group (use weight variable)
+  # pyears(surv ~ year + age, weights = tmp$v005/1000000, scale = 1, data.frame = TRUE)
+  calcpyears <- pyears(Surv(time = expo, event = event, type = "right") ~ cut_time + cut_age, weights = v005/1000000, scale = 1, dat, data.frame = TRUE)
+  PY <- calcpyears[[2]]
+  PY <- PY[order(PY$cut_time, PY$cut_age),]
+  
+  # Estimate mx (PY$event/PY$pyears)
+  PY$mx     <- PY$event/PY$pyears
+  PY$age_d_low  <- as.numeric(paste(PY$cut_age))
+  PY$age <- as.numeric(as.character(PY$cut_age))
+  PY <- PY %>%
+    group_by(cut_time) %>%
+    arrange(cut_time, age) %>%
+    mutate(n_d = c(rep(7,4), 32.8750, rep(30.4375,58)),
+           age_d_up = age_d_low + n_d)
+  
+  # Define age groups for estimation
+  age_ints <- c(ages[1], ages[-1] - ages[-length(ages)])
+  
+  # Calculate cumulative Qx for desired age groups
+  df_Qx <- map_dfr(ages, function(x) {
+    PY %>%
+      filter(age_d_up <= x) %>%
+      group_by(cut_time) %>%
+      summarize(
+        age_d_up = x,
+        Qx = 1 - exp(-sum(mx * n_d/365.25)),
+        .groups = "drop"
+      )
+  })
+  # Decumulate Qx to get qx, and add age columns
+  df_Qx <- df_Qx %>%
+    group_by(cut_time) %>%
+    mutate(
+      age_d = c(0, ages[-length(ages)]),
+      n_d = age_ints,
+      # alternative way of deriving mx
+      #checkmx = -log(1 - c(Qx[1], 1 - (1 - Qx[-1]) / (1 - Qx[-length(Qx)]))) / (n_d / 365.25),
+      qx = c(Qx[1], Qx[-1] - Qx[-length(Qx)])) %>%
+    ungroup() %>%
+    mutate(
+      age_d_mid = age_d + n_d/2,
+      age_d_up = age_d + n_d,
+      age_y = age_d/365.25,
+      age_y_up = age_d_up/365.25
+    ) %>%
+    arrange(cut_time, age_d)
+  
+  # Calculate events, exposure, and mx
+  age_lows <- c(0, ages[-length(ages)])
+  df_events <- map2_dfr(age_lows, ages, function(low, high) {
+    PY %>%
+      filter(age_d_low >= low, age_d_up <= high) %>%
+      group_by(cut_time) %>%
+      summarize(
+        age_d = low,
+        events = sum(event),
+        pyears = sum(pyears),
+        .groups = "drop"
+      )
+  })
+  df_events <- df_events %>%
+    mutate(mx = events/pyears)
+  
+  # Merge
+  df_rates <- df_Qx %>%
+    full_join(df_events, by = c("cut_time", "age_d")) %>%
+    arrange(cut_time, age_d)
+  
+  # Apply plot rows, grouped by year
+  df_plot <- df_rates %>%
+    group_split(cut_time) %>%       # split into list of data frames by year
+    map(fn_addrows) %>%         # apply function to each group
+    bind_rows() %>%             # recombine into one data frame
+    arrange(cut_time, age_y)        # optional: sort the result
+  
+  l_res <- list(df_rates, df_plot)
+  names(l_res) <- c("rates", "plot")
+  
+  return(l_res)
+  
+}
 
 
 # Demogsurv ---------------------------------------------------------------
