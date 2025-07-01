@@ -57,10 +57,10 @@ table(subset(dat, is.na(q208))$q211, useNA = "always")
 table(subset(dat, is.na(q208))$q212, useNA = "always") 
 
 # Eu une grossesse  qui s'était terminée par une naissance non vivante
-table(dat$q210, useNA = "always") # 3225 yes
+table(dat$q210, useNA = "always") # 3229 yes
 # q211 (nombre de naissances non vivantes)
 table(dat$q211, useNA = "always")
-nrow(subset(dat, !is.na(q211) & q211 != 0)) # 3232
+nrow(subset(dat, !is.na(q211) & q211 != 0)) # 3236
 # slightly more pregnancy losses reported than those who said yes to q210
 
 
@@ -93,7 +93,7 @@ nrow(subset(dat, is.na(q201))) # 44
 nrow(subset(dat, !is.na(q201) & q201 == 1 & is.na(q212))) # 9
 
 # Total children surviving and died equals total children
-nrow(subset(dat, sum_cebcd == q208)) # 25977
+nrow(subset(dat, sum_cebcd == q208)) # 26072
 # Children surviving is more than total children
 nrow(subset(dat, q203_comb + q205_comb > q208)) # 9
 # Children died is more than total children
@@ -103,7 +103,7 @@ nrow(subset(dat, sum_cebcd > q208)) # 23
 # Sum of children surviving and died is less than total
 nrow(subset(dat, sum_cebcd < q208)) # 2
 # Total children surviving and died plus pregnancy losses equals total pregnancies
-nrow(subset(dat, sum_preg == q212)) # 25876
+nrow(subset(dat, sum_preg == q212)) # 25971
 # Total children surviving and died plus pregnancy losses is more than total pregnancies
 nrow(subset(dat, sum_preg > q212)) # 40
 # Total children surviving and died plus pregnancy losses is less than total pregnancies
@@ -111,7 +111,7 @@ nrow(subset(dat, sum_preg < q212)) # 82
 
 # adjust totals to match reported number of births and pregnancies
 # adjustments will be made in cleaning file to these ones
-nrow(subset(dat, sum_cebcd != dat$q208)) # 30 births
+nrow(subset(dat, sum_cebcd != dat$q208)) # 25 births
 nrow(subset(dat, !is.na(dat$q212) & sum_preg != dat$q212)) # 122 pregnancies
 nrow(subset(dat, is.na(dat$q212))) # 53 total preg variable missing
 

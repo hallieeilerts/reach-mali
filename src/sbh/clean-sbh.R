@@ -8,7 +8,7 @@ rm(list = ls())
 library(tidyr)
 library(dplyr)
 #' Inputs
-dat <- read.csv("./data/reach_mortalite_femme_qwsec2a.csv")
+dat <- readRDS("./gen/sbh/temp/sbh-qsecover-qwsec01.rds")
 ################################################################################
 
 # Fill in missing q208 (nombre total d'enfants nés) with kids reported as living with them, living elsewhere, and kids who died
