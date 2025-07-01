@@ -27,6 +27,7 @@ dat <- dat %>%
       }
   ) %>%
   ungroup()
+nrow(subset(dat, is.na(tips))) # 0
 
 # create period for dob
 surveyyear <- 2025
@@ -37,11 +38,6 @@ surveyyear_labs <- c( paste0("<",surveyyear_breaks[2]),
                       paste0("[", surveyyear_breaks[4], ", ", surveyyear+1, ")") )
 dat$period <- cut(dat$dob_dec, breaks = surveyyear_breaks, labels = surveyyear_labs)
 
-# Remove unnecessary variables
-dat <- dat %>%
-  select(-c(q228_clean, qintdate_y, qintdate_m, qintdate_d, 
-            dif_d, dif_m, dif_y, earliestdob, q220m_imp,
-            q220d_imp, q220_date_stub, max_day))
 
 # Save --------------------------------------------------------------------
 

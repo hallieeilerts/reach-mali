@@ -1,6 +1,7 @@
 ################################################################################
 #' @description Audit completeness of DOB variable
-#' @return 
+#' @return (i) dat_aud1: table with missingness of day/month/year of birth variables
+#' (ii) dat_aud2: file whether individuals are assigned to categories based on their DOB missingness
 ################################################################################
 #' Clear environment
 rm(list = ls())
@@ -96,7 +97,7 @@ dat_aud2 <- dat %>%
       TRUE ~ "other"
     )
   ) %>%
-  select(qwsec2b_id, q219, q220y, q220m, q220d, q228, dob_type, q216, q223)
+  select(qwsec2b_id, q219, q220y, q220m, q220d, q228, dob_type, q216, q223, q223_aug)
 table(dat_aud2$dob_type, useNA = "always")
 write.csv(dat_aud2, paste0("./gen/fph/audit/dat_aud-dob2_", format(Sys.Date(), "%Y%m%d"), ".csv"), row.names = FALSE)
 

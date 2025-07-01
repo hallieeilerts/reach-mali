@@ -29,7 +29,7 @@ dat %>%
 # if the fausse couche written in q18
 # making sure q217 (moved or cried) is not 1
 nrow(subset(dat, is.na(q223) & q218 == "FAUSSE COUCHE" & (is.na(q217) | q217 == 2))) # 16
-# making sure that if pregnancy duraction reported, was not more than 28 weeks or 7 months
+# making sure that if pregnancy duration reported, was not more than 28 weeks or 7 months
 #View(subset(dat, is.na(q223) & q218 == "FAUSSE COUCHE" & (is.na(q217) | q217 == 2)))
 nrow(subset(dat, is.na(q223) & q218 == "FAUSSE COUCHE" & 
               (is.na(q217) | q217 == 2) &
@@ -89,7 +89,7 @@ table(subset(dat, is.na(q223))$q224)
 
 # Sexe de l'enfant
 table(dat$q219, useNA = "always")
-# 4776 missing
+# 4780 missing
 
 # L'enfant est toujours en vie
 table(dat$q224, useNA = "always")
@@ -99,7 +99,7 @@ subset(dat, q224 == 1 & !is.na(q228))
 # in three cases, ages at death are reported for children who are still alive
 
 # Age at death is never missing when death reported
-subset(dat, q224 == 2 & is.na(q228))
+nrow(subset(dat, q224 == 2 & is.na(q228))) # 0
 
 # Durée de grossesse
 table(dat$q221, useNA = "always")
