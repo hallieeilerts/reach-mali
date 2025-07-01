@@ -12,7 +12,7 @@ library(cowplot)
 library(ggpubr)
 #' Inputs
 source("./src/utils.R")
-dat <- readRDS("./gen/sbh/temp/sbh-qsecover-qwsec01.rds")
+dat <- readRDS("./gen/sbh/temp/sbh-clean.rds")
 dhs <- readRDS("./gen/dhs/output/mldhs-sbh.rds")
 ################################################################################
 
@@ -99,6 +99,7 @@ p <- dat %>%
          name = factor(name, levels = c("Ever born", "Surviving", "Died"))) %>%
   ggplot() +
   geom_bar(aes(x=agecat_resp, y = value, fill = source), stat = "identity", position = "dodge") +
+  #scale_fill_viridis_d(option = "C", na.value = "grey80") +
   facet_wrap(~name) +
   labs(y = "Mean", x = "Age", title = "Average children ever born, surviving, and died by age of mother") +
   theme_bw() +
@@ -251,11 +252,6 @@ final_plot <- ggarrange(
 # Save the final figure
 ggsave("./gen/sbh/figures/sbh-pregnancies-byage-combined.png",
        final_plot, dpi = 300, width = 6, height = 3)
-
-
-# Combined plot for number of births by age of mother ---------------------
-
-
 
 
 # Combined plot for children born by age ----------------------------------
