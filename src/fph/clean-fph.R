@@ -1,6 +1,9 @@
 ################################################################################
 #' @description Clean FPH
-#' @return 
+#' @return dataset with cleaned pregnancy outcome variable (q223_aug),
+#' recoding of nonsensical values (e.g., if child is still alive and living with respondent, age of death recoded to NA)
+#' (e.g., if child is still alive, pregnancy outcome should be live birth)
+#' no values dropped
 ################################################################################
 #' Clear environment
 rm(list = ls())
@@ -11,9 +14,10 @@ library(dplyr)
 dat <- read.csv("./data/reach_mortalite_femme_qwsec2b.csv")
 ################################################################################
 
-# Fill in missing q223 with q216 when possible
-# augmented q223
+# create augmented q223
 dat$q223_aug <- dat$q223
+
+# fill in missing q223 with q216 when possible
 
 # name has "FAUSSE COUCHE", q217 (moved or cried) is not yes
 # if pregnancy duration reported, it was not more than 28 weeks or 7 months
@@ -46,19 +50,20 @@ dat$q223_aug[is.na(dat$q223) & dat$q218 == "AVORTEMENT" &
               (is.na(dat$q221u) | (dat$q221u == 2 & dat$q221n < 8)))] <- 4
 table(dat$q223_aug, useNA = "always")
 
-# fill in q223_aug with q216 (first reported pregnancy result) when it is missing
+# fill in q223_aug with q216 when it is missing
 # make sure that the record has q224 reported (whether child is still alive) if q216 is a live birth
 nrow(subset(dat, is.na(q223_aug))) # 336
 nrow(subset(dat, is.na(q223_aug) & !is.na(q216))) # 301
 dat$q223_aug[is.na(dat$q223) & !is.na(dat$q216) & !(dat$q216 == 1 & is.na(dat$q224))] <- dat$q216[is.na(dat$q223) & !is.na(dat$q216)& !(dat$q216 == 1 & is.na(dat$q224))]
 nrow(subset(dat, is.na(q223_aug))) # 320
-# this only helped fill in 336-320
+# this only helped fill in 336-320 = 16
 # most of the time when q223 is missing and q216 is reported the record is still missing crucial values like q224
 # so not worth filling these ones in
 # View(subset(dat, is.na(q223_aug) & !is.na(q216)))
 
 # The ones that still have missing pregnancy outcomes have missing in almost all other variables
-sum(subset(dat, is.na(q223_aug))$q224, na.rm = TRUE) # q224 is child still alive, 0
+# checking missingness of just one important variable -- q224 is child still alive
+sum(subset(dat, is.na(q223_aug))$q224, na.rm = TRUE) # 0
 
 # if child is reported as still alive (q224 == 1), age at death (q228) should be NA
 nrow(subset(dat, q224 == 1 & !is.na(q228))) # 3
@@ -68,6 +73,7 @@ nrow(subset(dat, q224 == 1 & !is.na(q228))) # 0
 
 # if the child is still alive, q223_aug should always be live birth
 table(subset(dat, q224 == 1)$q223_aug, useNA = "always")
+nrow(subset(dat, q224 == 1 & q223_aug != 1)) # 2
 subset(dat, q224 == 1 & q223_aug != 1)
 # in these two cases, both children listed as living with the respondent (q226 == 1) and they dont have a age at death (q228)
 # recode as live birth
@@ -90,7 +96,10 @@ nrow(subset(dat, q224 == 1 & q223_aug != 1)) # 0
 # and pregnancy outcome is always not a live birth when the child still alive question wasn't asked
 table(subset(dat, is.na(q224))$q223_aug) # 0 
 nrow(subset(dat, is.na(q224) & q223_aug == 1)) # 0
-# remember q223_aug is still missing in 320 cases
+# q223_aug is still missing in 320 cases
+#View(subset(dat, is.na(q223_aug)))
+# it is reported in q216 for many of these. 
+# however it seems the value was not transferred over to q223 because of missing values in other crucial variables
 nrow(subset(dat, is.na(q223_aug))) # 320
 
 # check if age of death is (q228) is ever missing when units of age at death (q228u) are reported
@@ -107,76 +116,18 @@ subset(dat, is.na(q228) & !is.na(q228n))
 # recode q228n as missing
 dat$q228n[is.na(dat$q228) & !is.na(dat$q228n)] <- NA
 
-# Add factor labels
-# Choosing not to do this now
-# dat <- dat %>%
-#   mutate(q216 = case_when(
-#     q216 == 1 ~ "Né vivant",
-#     q216 == 2 ~ "Mort né",
-#     q216 == 3 ~ "Fausse-couche",
-#     q216 == 4 ~ "Avortement",
-#     TRUE ~ NA_character_),    
-#     q216 = factor(
-#       q216,
-#       levels = c(
-#         "Né vivant",
-#         "Mort né",
-#         "Fausse-couche",
-#         "Avortement")
-#     )
-#   ) %>%
-#   mutate(q223 = case_when(
-#     q223 == 1 ~ "Né vivant",
-#     q223 == 2 ~ "Mort né",
-#     q223 == 3 ~ "Fausse-couche",
-#     q223 == 4 ~ "Avortement",
-#     TRUE ~ NA_character_),    
-#     q223 = factor(
-#       q223,
-#       levels = c(
-#         "Né vivant",
-#         "Mort né",
-#         "Fausse-couche",
-#         "Avortement")
-#     )
-#   ) %>%
-#   mutate(q223_aug = case_when(
-#     q223_aug == 1 ~ "Né vivant",
-#     q223_aug == 2 ~ "Mort né",
-#     q223_aug == 3 ~ "Fausse-couche",
-#     q223_aug == 4 ~ "Avortement",
-#     TRUE ~ NA_character_),    
-#     q223_aug = factor(
-#       q223_aug,
-#       levels = c(
-#         "Né vivant",
-#         "Mort né",
-#         "Fausse-couche",
-#         "Avortement")
-#     )
-#   ) %>%
-#   mutate(q217 = case_when(
-#     q217 == 1 ~ "Oui",
-#     q217 == 2 ~ "Non",
-#     TRUE ~ NA_character_),    
-#     q217 = factor(
-#       q217,
-#       levels = c(
-#         "Oui",
-#         "Non")
-#     )
-#   ) %>%
-#   mutate(q221u = case_when(
-#     q221u == 1 ~ "Semaines",
-#     q221u == 2 ~ "Mois",
-#     TRUE ~ NA_character_),    
-#     q221u = factor(
-#       q221u,
-#       levels = c(
-#         "Semaines",
-#         "Mois")
-#     )
-#   )
+# check that length of pregnancy is always longer than 7 months when stillbirth
+table(subset(dat, q223_aug == 2)$q221u) # reported in months in all but one case
+table(subset(dat, q223_aug == 2)$q221n) # there is one case of 4 months, and one of 6 months
+# recode to miscarriage
+table(dat$q221u, useNA = "always")
+table(dat$q221n, useNA = "always")
+subset(dat, q223_aug == 2 & q221u == 2 & q221n <7)
+# not sure why this returns NA rows
+dat[dat$q223_aug == 2 & dat$q221u == 2 & dat$q221n < 7,]
+table(dat$q223_aug, useNA = "always")
+dat$q223_aug[dat$q223_aug == 2 & dat$q221u == 2 & dat$q221n < 7] <- 3
+table(dat$q223_aug, useNA = "always")
 
 table(dat$q216, useNA = "always") # Résultat de la grossesse
 table(dat$q217, useNA = "always") # Bébé a crié, a bougé ou respiré
