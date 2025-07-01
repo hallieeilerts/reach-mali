@@ -1,5 +1,5 @@
 ################################################################################
-#' @description 
+#' @description Mortality calculations using gapu5m age groups without confidence intervals
 #' @return 
 ################################################################################
 #' Clear environment
@@ -14,25 +14,27 @@ library(readxl)
 source("./src/utils.R")
 dat <- readRDS("./gen/fph/output/fph-tips.rds")
 # sampling weights
-wt <- read_excel("./data/instat/Poids_Enquete_Base_Mortalite.xlsx", sheet = "Poidsvf")
+wt <- read_excel("./data/instat-20250623/Poids_Enquete_Base_Mortalite.xlsx", sheet = "Poidsvf")
 ################################################################################
 
 wt <- wt[, c("GRAPPE", "Poids normalisé des femmes de 15-49 ans")]
 names(wt) <- c("grappe", "wt")
 wt$grappe <- as.numeric(wt$grappe)
 
-
 # Merge on weights --------------------------------------------------------
 
-nrow(dat)
+nrow(dat) # 79763
 dat <- merge(dat, wt, by = "grappe")
-nrow(dat)
+nrow(dat) # 79763
 # all have weights
+nrow(subset(dat, is.na(grappe))) # 0
+nrow(subset(dat, is.na(wt))) # 0
 
 #  Set exposure -----------------------------------------------------------
 
 # Only keep live births
 dat <- subset(dat, q223_aug == 1)
+nrow(dat) # 75006
 
 # There are no NA's event
 table(dat$event, useNA = "always")
@@ -72,6 +74,47 @@ reach_age <- c(28, 365.25*5)
 
 # exposure is never missing
 nrow(subset(dat, is.na(expo))) # 0
+#hist(dat$expo)
+
+
+# Test function -----------------------------------------------------------
+
+tips = c(0, 5, 10, 15)
+
+dat$cut_time <- tcut(dat$dob_dec - dat$v008_dec, -rev(tips), labels = rev(.epis_labels(tips)))
+
+# "startage" sets the age at entry time (that is birth), so it is 0
+dat$startage <- 0
+
+# define age groups in weeks and months (but expressed in years) and labels (expressed in days)
+agecut <-  c(0,7,14, 21, 28, seq(60.8750, 365.25*5,  30.4375))/365.25
+agecutlab <- as.character(agecut[1:(length(agecut)-1)]*365.25)
+dat$cut_age <- tcut(dat$startage, agecut, labels = agecutlab)
+
+options(scipen=999)
+#head(dat[,c("dob_dec", "dod_dec", "event", "v008_dec", "expo", "cut_time", "cut_age")])
+
+# function that computes deaths and person-years for the defined periods and age group (use weight variable)
+# pyears(surv ~ year + age, weights = tmp$v005/1000000, scale = 1, data.frame = TRUE)
+calcpyears <- pyears(Surv(time = expo, event = event, type = "right") ~ cut_time + cut_age, weights = wt, scale = 1, dat, data.frame = TRUE)
+PY <- calcpyears[[2]]
+PY <- PY[order(PY$cut_time, PY$cut_age),]
+
+# This won't be exact
+# Because I added the tips variable just based on date of birth in years prior to survey
+# Whereas the pyears function in placing dates of death in tips periods
+# But just a gut check that no deaths being lost.
+sum(subset(PY, cut_time == "0-4")$event) # 1332.666
+sum(subset(dat, tips == "0-4")$event) # 1009
+# dat %>% 
+#   filter(event == 1) %>%
+#   mutate(yod = floor(dob_dec)) %>%
+#   filter(yod %in% 2020:2025 & aadd < 30) %>%
+#   nrow()
+
+dat <- dat %>%
+  select(-c(cut_time, startage, cut_age))
+
 
 # Entire pop --------------------------------------------------------------
 
@@ -87,29 +130,25 @@ gapu5m_plot_all_tips <- res$plot
 # subset(gapu5m_rates_all_tips, age_y_up == 5)
 # as.data.frame(subset(gapu5m_rates_all_tips, cut_time == "0-4" & age_y_up == 5))
 
-# Period
-
-res <- fn_calcmort(dat, ages = gapu5m_age, period = c(2010, 2015, 2020, 2025))
-gapu5m_rates_all_period <- res$rates
-gapu5m_plot_all_period <- res$plot
-
 # REACH age groups
 reach1 <- fn_calcmort(dat, ages = c(365.25*5), tips = c(0, 5, 10, 15))
 reach2 <- fn_calcmort(dat, ages = c(28, 365.25*5), tips = c(0, 5, 10, 15))
-reach_rates_all_tips <- rbind(reach1$rates, reach2$rates)
-reach1 <- fn_calcmort(dat, ages = c(365.25*5), period = c(2010, 2015, 2020, 2025))
-reach2 <- fn_calcmort(dat, ages = c(28, 365.25*5), period = c(2010, 2015, 2020, 2025))
-reach_rates_all_period <- rbind(reach1$rates, reach2$rates)
+reach3 <- fn_calcmort(dat, ages = c(28, 365.25), tips = c(0, 5, 10, 15))
+reach3$rates <- subset(reach3$rates, age_d == 28)
+reach4 <- fn_calcmort(dat, ages = c(365.25, 365.25*5), tips = c(0, 5, 10, 15))
+reach4$rates <- subset(reach4$rates, age_y == 1)
+reach5 <- fn_calcmort(dat, ages = c(365.25), tips = c(0, 5, 10, 15))
+reach_rates_all_tips <- rbind(reach1$rates, reach2$rates, reach3$rates, reach4$rates, reach5$rates)
 
 #as.data.frame(subset(reach1$rates, cut_time == "0-4"))
 
-
 # Residence ---------------------------------------------------------------
-
-# Tips
 
 groups <- dat %>% group_by(qtype) %>% group_split()
 qtypes <- dat %>% group_by(qtype) %>% group_keys() %>% pull(qtype)
+
+# gapu5m
+
 # Apply the function by qtype
 results_byvar <- map(groups, ~ fn_calcmort(.x, ages = gapu5m_age, tips = c(0, 5, 10, 15)))
 names(results_byvar) <- qtypes
@@ -117,84 +156,39 @@ names(results_byvar) <- qtypes
 gapu5m_rates_res_tips <- imap_dfr(results_byvar, ~ mutate(.x$rates, byvar = .y))
 gapu5m_plot_res_tips <- imap_dfr(results_byvar, ~ mutate(.x$plot, byvar = .y))
 
-# Period
-
-# # Apply the function by qtype
-# results_byvar <- dat %>%
-#   group_split(qtype) %>%
-#   set_names(unique(dat$qtype)) %>%  # name each group by its qtype
-#   map(~ fn_calcmort(.x, ages = gapu5m_age, period = c(2010, 2015, 2020, 2025)))
-# # Extract and label
-# gapu5m_rates_res_period <- imap_dfr(results_byvar, ~ mutate(.x$rates, byvar = .y))
-# gapu5m_plot_res_period <- imap_dfr(results_byvar, ~ mutate(.x$plot, byvar = .y))
-results_byvar <- map(groups, ~ fn_calcmort(.x, ages = gapu5m_age, c(2010, 2015, 2020, 2025)))
-names(results_byvar) <- qtypes
-gapu5m_rates_res_period <- imap_dfr(results_byvar, ~ mutate(.x$rates, byvar = .y))
-gapu5m_plot_res_period <- imap_dfr(results_byvar, ~ mutate(.x$plot, byvar = .y))
-
-gapu5m_plot_res_period %>%
-  ggplot() +
-  geom_step(aes(x = age_y, y = Qx*1000, color = byvar)) +
-  facet_wrap(~cut_time)
-gapu5m_plot_res_period %>%
-  ggplot() +
-  geom_step(aes(x = age_y, y = mx, color = byvar)) +
-  scale_y_log10() +
-  facet_wrap(~cut_time)
-
 # REACH
 
-# results_byvar <- dat %>%
-#   group_split(qtype) %>%
-#   set_names(unique(dat$qtype)) %>%  # name each group by its qtype
-#   map(~ fn_calcmort(.x, ages = c(365.25*5), tips = c(0, 5, 10, 15)))
-# reach1 <- imap_dfr(results_byvar, ~ mutate(.x$rates, byvar = .y))
-# results_byvar <- dat %>%
-#   group_split(qtype) %>%
-#   set_names(unique(dat$qtype)) %>%  # name each group by its qtype
-#   map(~ fn_calcmort(.x, ages = c(28, 365.25*5), tips = c(0, 5, 10, 15)))
-# reach2 <- imap_dfr(results_byvar, ~ mutate(.x$rates, byvar = .y))
-# reach_rates_res_tips <- rbind(reach1, reach2)
 results_byvar <- map(groups, ~ fn_calcmort(.x, ages = c(365.25*5), tips = c(0, 5, 10, 15)))
 names(results_byvar) <- qtypes
 reach1 <- imap_dfr(results_byvar, ~ mutate(.x$rates, byvar = .y))
+
 results_byvar <- map(groups, ~ fn_calcmort(.x, ages = c(28, 365.25*5), tips = c(0, 5, 10, 15)))
 names(results_byvar) <- qtypes
 reach2 <- imap_dfr(results_byvar, ~ mutate(.x$rates, byvar = .y))
-reach_rates_res_tips <- rbind(reach1, reach2)
 
-# results_byvar <- dat %>%
-#   group_split(qtype) %>%
-#   set_names(unique(dat$qtype)) %>%  # name each group by its qtype
-#   map(~ fn_calcmort(.x, ages = c(365.25*5), period = c(2010, 2015, 2020, 2025)))
-# reach1 <- imap_dfr(results_byvar, ~ mutate(.x$rates, byvar = .y))
-# results_byvar <- dat %>%
-#   group_split(qtype) %>%
-#   set_names(unique(dat$qtype)) %>%  # name each group by its qtype
-#   map(~ fn_calcmort(.x, ages = c(28, 365.25*5), period = c(2010, 2015, 2020, 2025)))
-# reach2 <- imap_dfr(results_byvar, ~ mutate(.x$rates, byvar = .y))
-# reach_rates_res_period <- rbind(reach1, reach2)
-results_byvar <- map(groups, ~ fn_calcmort(.x, ages = c(365.25*5), period = c(2010, 2015, 2020, 2025)))
+results_byvar <- map(groups, ~ fn_calcmort(.x, ages = c(28, 365.25), tips = c(0, 5, 10, 15)))
 names(results_byvar) <- qtypes
-reach1 <- imap_dfr(results_byvar, ~ mutate(.x$rates, byvar = .y))
-results_byvar <- map(groups, ~ fn_calcmort(.x, ages = c(28, 365.25*5), period = c(2010, 2015, 2020, 2025)))
+reach3 <- imap_dfr(results_byvar, ~ mutate(.x$rates, byvar = .y))
+reach3 <- subset(reach3, age_d == 28)
+
+results_byvar <- map(groups, ~ fn_calcmort(.x, ages =  c(365.25, 365.25*5), tips = c(0, 5, 10, 15)))
 names(results_byvar) <- qtypes
-reach2 <- imap_dfr(results_byvar, ~ mutate(.x$rates, byvar = .y))
-reach_rates_res_period <- rbind(reach1, reach2)
+reach4 <- imap_dfr(results_byvar, ~ mutate(.x$rates, byvar = .y))
+reach4 <- subset(reach4, age_y == 1)
+
+results_byvar <- map(groups, ~ fn_calcmort(.x, ages =  c(365.25), tips = c(0, 5, 10, 15)))
+names(results_byvar) <- qtypes
+reach5 <- imap_dfr(results_byvar, ~ mutate(.x$rates, byvar = .y))
+
+reach_rates_res_tips <- rbind(reach1, reach2, reach3, reach4, reach5)
 
 # Region ------------------------------------------------------------------
 
-# Tips
-
-# results_byvar <- dat %>%
-#   group_split(qlregion) %>%
-#   set_names(unique(dat$qlregion)) %>%  # name each group by its qtype
-#   map(~ fn_calcmort(.x, ages = gapu5m_age, tips = c(0, 5, 10, 15)))
-# # Extract and label
-# gapu5m_rates_reg_tips <- imap_dfr(results_byvar, ~ mutate(.x$rates, byvar = .y))
-# gapu5m_plot_reg_tips  <- imap_dfr(results_byvar, ~ mutate(.x$plot, byvar = .y))
 groups <- dat %>% group_by(qlregion) %>% group_split()
 qlregions <- dat %>% group_by(qlregion) %>% group_keys() %>% pull(qlregion)
+
+# gapu5m
+
 # Apply the function by qlregion
 results_byvar <- map(groups, ~ fn_calcmort(.x, ages = gapu5m_age, tips = c(0, 5, 10, 15)))
 names(results_byvar) <- qlregions
@@ -202,115 +196,74 @@ names(results_byvar) <- qlregions
 gapu5m_rates_reg_tips <- imap_dfr(results_byvar, ~ mutate(.x$rates, byvar = .y))
 gapu5m_plot_reg_tips <- imap_dfr(results_byvar, ~ mutate(.x$plot, byvar = .y))
 
-
-# Period
-
-# results_byvar <- dat %>%
-#   group_split(qlregion) %>%
-#   set_names(unique(dat$qlregion)) %>%  # name each group by its qtype
-#   map(~ fn_calcmort(.x, ages = gapu5m_age, period = c(2010, 2015, 2020, 2025)))
-# # Extract and label
-# gapu5m_rates_reg_period <- imap_dfr(results_byvar, ~ mutate(.x$rates, byvar = .y))
-# gapu5m_plot_reg_period  <- imap_dfr(results_byvar, ~ mutate(.x$plot, byvar = .y))
-results_byvar <- map(groups, ~ fn_calcmort(.x, ages = gapu5m_age, c(2010, 2015, 2020, 2025)))
-names(results_byvar) <- qlregions
-gapu5m_rates_reg_period <- imap_dfr(results_byvar, ~ mutate(.x$rates, byvar = .y))
-gapu5m_plot_reg_period <- imap_dfr(results_byvar, ~ mutate(.x$plot, byvar = .y))
-
-gapu5m_plot_reg_period %>%
-  ggplot() +
-  geom_step(aes(x = age_y, y = Qx*1000, color = byvar)) +
-  facet_wrap(~cut_time)
-
 # REACH
 
-# results_byvar <- dat %>%
-#   group_split(qlregion) %>%
-#   set_names(unique(dat$qlregion)) %>%  # name each group by its qlregion
-#   map(~ fn_calcmort(.x, ages = c(365.25*5), tips = c(0, 5, 10, 15)))
-# reach1 <- imap_dfr(results_byvar, ~ mutate(.x$rates, byvar = .y))
-# results_byvar <- dat %>%
-#   group_split(qlregion) %>%
-#   set_names(unique(dat$qlregion)) %>%  # name each group by its qlregion
-#   map(~ fn_calcmort(.x, ages = c(28, 365.25*5), tips = c(0, 5, 10, 15)))
-# reach2 <- imap_dfr(results_byvar, ~ mutate(.x$rates, byvar = .y))
-# reach_rates_reg_tips <- rbind(reach1, reach2)
 results_byvar <- map(groups, ~ fn_calcmort(.x, ages = c(365.25*5), tips = c(0, 5, 10, 15)))
 names(results_byvar) <- qlregions
 reach1 <- imap_dfr(results_byvar, ~ mutate(.x$rates, byvar = .y))
+
 results_byvar <- map(groups, ~ fn_calcmort(.x, ages = c(28, 365.25*5), tips = c(0, 5, 10, 15)))
 names(results_byvar) <- qlregions
 reach2 <- imap_dfr(results_byvar, ~ mutate(.x$rates, byvar = .y))
-reach_rates_reg_tips <- rbind(reach1, reach2)
 
-# results_byvar <- dat %>%
-#   group_split(qlregion) %>%
-#   set_names(unique(dat$qlregion)) %>%  # name each group by its qlregion
-#   map(~ fn_calcmort(.x, ages = c(365.25*5), period = c(2010, 2015, 2020, 2025)))
-# reach1 <- imap_dfr(results_byvar, ~ mutate(.x$rates, byvar = .y))
-# results_byvar <- dat %>%
-#   group_split(qlregion) %>%
-#   set_names(unique(dat$qlregion)) %>%  # name each group by its qlregion
-#   map(~ fn_calcmort(.x, ages = c(28, 365.25*5), period = c(2010, 2015, 2020, 2025)))
-# reach2 <- imap_dfr(results_byvar, ~ mutate(.x$rates, byvar = .y))
-# reach_rates_reg_period <- rbind(reach1, reach2)
-results_byvar <- map(groups, ~ fn_calcmort(.x, ages = c(365.25*5), period = c(2010, 2015, 2020, 2025)))
+results_byvar <- map(groups, ~ fn_calcmort(.x, ages = c(28, 365.25), tips = c(0, 5, 10, 15)))
 names(results_byvar) <- qlregions
-reach1 <- imap_dfr(results_byvar, ~ mutate(.x$rates, byvar = .y))
-results_byvar <- map(groups, ~ fn_calcmort(.x, ages = c(28, 365.25*5), period = c(2010, 2015, 2020, 2025)))
+reach3 <- imap_dfr(results_byvar, ~ mutate(.x$rates, byvar = .y))
+reach3 <- subset(reach3, age_d == 28)
+
+results_byvar <- map(groups, ~ fn_calcmort(.x, ages =  c(365.25, 365.25*5), tips = c(0, 5, 10, 15)))
 names(results_byvar) <- qlregions
-reach2 <- imap_dfr(results_byvar, ~ mutate(.x$rates, byvar = .y))
-reach_rates_reg_period <- rbind(reach1, reach2)
+reach4 <- imap_dfr(results_byvar, ~ mutate(.x$rates, byvar = .y))
+reach4 <- subset(reach4, age_y == 1)
+
+results_byvar <- map(groups, ~ fn_calcmort(.x, ages =  c(365.25), tips = c(0, 5, 10, 15)))
+names(results_byvar) <- qlregions
+reach5 <- imap_dfr(results_byvar, ~ mutate(.x$rates, byvar = .y))
+
+reach_rates_reg_tips <- rbind(reach1, reach2, reach3, reach4, reach5)
 
 # Combine -----------------------------------------------------------------
 
 # Combine all gapu5m rates
 gapu5m_rates_all_tips$byvar <- "All"
-gapu5m_rates_all_period$byvar <- "All"
 gapu5m_rates_all_tips$type <- "All"
-gapu5m_rates_all_period$type <- "All"
 gapu5m_rates_res_tips$type <- "Residence"
-gapu5m_rates_res_period$type <- "Residence"
 gapu5m_rates_reg_tips$type <- "Region"
-gapu5m_rates_reg_period$type <- "Region"
-gapu5m_rates <- rbind(gapu5m_rates_all_tips, gapu5m_rates_all_period, 
-                      gapu5m_rates_res_tips, gapu5m_rates_res_period,
-                      gapu5m_rates_reg_tips, gapu5m_rates_reg_period)
+gapu5m_rates <- rbind(gapu5m_rates_all_tips,
+                      gapu5m_rates_res_tips,
+                      gapu5m_rates_reg_tips)
 gapu5m_rates <- gapu5m_rates %>%
   arrange(byvar, cut_time, age_d)
 
 
 # Combine all gapu5m plot rates
 gapu5m_plot_all_tips$byvar <- "All"
-gapu5m_plot_all_period$byvar <- "All"
 gapu5m_plot_all_tips$type <- "All"
-gapu5m_plot_all_period$type <- "All"
 gapu5m_plot_res_tips$type <- "Residence"
-gapu5m_plot_res_period$type <- "Residence"
 gapu5m_plot_reg_tips$type <- "Region"
-gapu5m_plot_reg_period$type <- "Region"
-gapu5m_plot <- rbind(gapu5m_plot_all_tips, gapu5m_plot_all_period, 
-                     gapu5m_plot_res_tips, gapu5m_plot_res_period,
-                      gapu5m_plot_reg_tips, gapu5m_plot_reg_period)
+gapu5m_plot <- rbind(gapu5m_plot_all_tips,  
+                     gapu5m_plot_res_tips,
+                      gapu5m_plot_reg_tips)
 gapu5m_plot <- gapu5m_plot %>%
   arrange(byvar, cut_time, age_d)
 
-
 # Combine all reach rates
 reach_rates_all_tips$byvar <- "All"
-reach_rates_all_period$byvar <- "All"
 reach_rates_all_tips$type <- "All"
-reach_rates_all_period$type <- "All"
 reach_rates_res_tips$type <- "Residence"
-reach_rates_res_period$type <- "Residence"
 reach_rates_reg_tips$type <- "Region"
-reach_rates_reg_period$type <- "Region"
-reach_rates <- rbind(reach_rates_all_tips, reach_rates_all_period, 
-                     reach_rates_res_tips, reach_rates_res_period,
-                     reach_rates_reg_tips, reach_rates_reg_period)
-reach_rates$agegrp <- "Under5"
-reach_rates$agegrp[reach_rates$age_y == 0 & reach_rates$age_y_up != 5] <- "Neonatal"
-reach_rates$agegrp[reach_rates$age_d == 28] <- "1to59m"
+reach_rates <- rbind(reach_rates_all_tips,
+                     reach_rates_res_tips, 
+                     reach_rates_reg_tips)
+reach_rates$agegrp <- "q0to5y"
+reach_rates$agegrp[reach_rates$age_y == 0 & reach_rates$n_d == 28] <- "q0to28d"
+reach_rates$agegrp[reach_rates$age_d == 28 & reach_rates$age_y_up == 5] <- "q1to59m"
+reach_rates$agegrp[reach_rates$age_d == 28 & reach_rates$age_y_up == 1] <- "q28dto1y"
+reach_rates$agegrp[reach_rates$age_y == 1 & reach_rates$age_y_up == 5] <- "q1to5y"
+reach_rates$agegrp[reach_rates$age_d == 0 & reach_rates$age_y_up == 1] <- "q0to1y"
+
+
+
 reach_rates <- reach_rates %>%
   arrange(byvar, cut_time, age_y, age_y_up)
 
