@@ -1,5 +1,5 @@
 ################################################################################
-#' @description Prepare qsecover
+#' @description Apply factor labels for interview completion, fill in missing interview dates when possible
 #' @return Cleaned qsecover file
 ################################################################################
 #' Clear environment
@@ -40,71 +40,7 @@ dat <- dat %>%
     qtype == 1 ~ "Urbain",
     qtype == 2 ~ "Rural",
     TRUE ~ NA_character_)
-  ) %>%
-  mutate(
-    qlangq = case_when(
-      qlangq == 1 ~ "Français",
-      qlangq == 2 ~ "Bambara/Malinke",
-      qlangq == 3 ~ "Sonraï/Djerma",
-      qlangq == 4 ~ "Peuhl/Foulfouldé",
-      qlangq == 5 ~ "Sénoufo",
-      qlangq == 6 ~ "Marka/Soninké",
-      qlangq == 7 ~ "Dogon",
-      qlangq == 8 ~ "Minianka",
-      qlangq == 9 ~ "Tamacheck",
-      qlangq == 10 ~ "Bobo/Dafing",
-      qlangq == 11 ~ "Bozo",
-      qlangq == 96 ~ "Autre",
-      TRUE ~ NA_character_
-    ),
-    qlangi = case_when(
-      qlangi == 1 ~ "Français",
-      qlangi == 2 ~ "Bambara/Malinke",
-      qlangi == 3 ~ "Sonraï/Djerma",
-      qlangi == 4 ~ "Peuhl/Foulfouldé",
-      qlangi == 5 ~ "Sénoufo",
-      qlangi == 6 ~ "Marka/Soninké",
-      qlangi == 7 ~ "Dogon",
-      qlangi == 8 ~ "Minianka",
-      qlangi == 9 ~ "Tamacheck",
-      qlangi == 10 ~ "Bobo/Dafing",
-      qlangi == 11 ~ "Bozo",
-      qlangi == 96 ~ "Autre",
-      TRUE ~ NA_character_
-    ),
-    qlangr = case_when(
-      qlangr == 1 ~ "Français",
-      qlangr == 2 ~ "Bambara/Malinke",
-      qlangr == 3 ~ "Sonraï/Djerma",
-      qlangr == 4 ~ "Peuhl/Foulfouldé",
-      qlangr == 5 ~ "Sénoufo",
-      qlangr == 6 ~ "Marka/Soninké",
-      qlangr == 7 ~ "Dogon",
-      qlangr == 8 ~ "Minianka",
-      qlangr == 9 ~ "Tamacheck",
-      qlangr == 10 ~ "Bobo/Dafing",
-      qlangr == 11 ~ "Bozo",
-      qlangr == 96 ~ "Autre",
-      TRUE ~ NA_character_
-    )
-  ) %>%
-  mutate(across(
-    c(qlangq, qlangi, qlangr),
-    ~factor(.x, levels = c(
-      "Français",
-      "Bambara/Malinke",
-      "Sonraï/Djerma",
-      "Peuhl/Foulfouldé",
-      "Sénoufo",
-      "Marka/Soninké",
-      "Dogon",
-      "Minianka",
-      "Tamacheck",
-      "Bobo/Dafing",
-      "Bozo",
-      "Autre"
-    ))
-  ))
+  )
 
 # Create dates
 dat$qvdate1 <- as.Date(paste(dat$qvyear, dat$qvmonth, dat$qvday, sep = "-"), format = "%Y-%m-%d")
@@ -154,7 +90,6 @@ dat <- dat %>%
       "Logement pas trouvé",
       "Partiel")
   ))
-  
 table(dat$wco3, useNA = "always")
 
 # Interview result for those with missing intdate
@@ -166,7 +101,7 @@ table(subset(dat, is.na(qintdate))$wco3, useNA = "always")
 dat <- dat %>%
   select(
     qsecover_id, level_1_id,
-    qregion, qlregion, qcercle, qlcercle, qdistrict,
+    qregion, qlregion, qcercle, qlcercle, qdistrict, #  region, administrative area info
     wi3, wli3, wi4, wi5, # commune, village, aire de santé
     qtype, # Type de résidence (num)
     qintdate, qvdate1, qvdate2, qvdate3, 

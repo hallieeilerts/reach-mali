@@ -75,5 +75,5 @@ nrow(subset(dat, is.na(agecat_resp))) # 0
 
 saveRDS(dat, "./gen/sec01/temp/qwsec01-age.rds")
 
-
-
+unloadNamespace("fitdistrplus")
+unloadNamespace("MASS")

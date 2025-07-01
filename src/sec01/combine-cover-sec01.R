@@ -8,25 +8,23 @@ rm(list = ls())
 library(tidyr)
 library(dplyr)
 #' Inputs
+level1 <- readRDS("./gen/sec01/temp/level1-clean.rds")
 qsecover <- readRDS("./gen/sec01/temp/qsecover-clean.rds")
 qwsec01 <- readRDS("./gen/sec01/temp/qwsec01-age.rds")
 ################################################################################
 
+head(level1)
 head(qsecover)
 head(qwsec01)
-# There is qsecover_id and level_1_id in qsecover
+nrow(level1) #  26452
+nrow(qsecover) # 26452
+nrow(qwsec01) # 26393
 
-# the id_data_cover variable in qwsec01 stays in sequence
-# whereas qsecover level_1_id changes at 1000 to 1500
-#qwsec01$id_data_cover[990:1020]
-#qsecover$level_1_id[990:1020]
-#qsecover$qsecover_id[990:1020]
+dat <- merge(level1, qsecover, by = "level_1_id")
+nrow(dat) # 26452
 
-# decision: merge on qsecover_id
-
-dat <- merge(qsecover, qwsec01, by.x = "qsecover_id", by.y = "id_data_cover")
-nrow(dat) == nrow(qsecover)
-nrow(dat) == nrow(qwsec01)
+dat <- merge(dat, qwsec01, by = "level_1_id", all.x = TRUE)
+nrow(dat) # 26452
 
 # Save --------------------------------------------------------------------
 

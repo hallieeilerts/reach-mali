@@ -14,26 +14,26 @@ library(stringr)
 dat <- read.csv("./data/reach_mortalite_femme_qsecover.csv")
 ################################################################################
 
-nrow(dat) # 26357
-length(unique(dat$qsecover_id)) # 26357
-length(unique(dat$level_1_id)) # 26357
+nrow(dat) # 26452
+length(unique(dat$qsecover_id)) # 26452
+length(unique(dat$level_1_id)) # 26452
 sum(dat$qsecover_id != dat$level_1_id) # 1000
 # subset(dat, qsecover_id != level_1_id)
 # not sure why these diverge at some point. still have same max
-max(dat$qsecover_id) #  27151
-max(dat$level_1_id) #  27151
+max(dat$qsecover_id) #  27246
+max(dat$level_1_id) #  27246
 
-# same unique length
-length(unique(qsecover$qsecover_id)) # 26357
-length(unique(qsecover$level_1_id))  # 26357
-# same values
-qsecover$qsecover_id[!(qsecover$qsecover_id %in% qsecover$level_1_id)]
-qsecover$level_1_id[!(qsecover$level_1_id %in% qsecover$qsecover_id)]
-# but they do not always equal each other
-# qsecover_id stays sequential, and level_1_id jumps to 1500
-qsecover$qsecover_id[which(qsecover$qsecover_id != qsecover$level_1_id)]
-qsecover$level_1_id[which(qsecover$level_1_id != qsecover$qsecover_id)]
-#View(qsecover[990:1050, c("qsecover_id", "level_1_id")])
+# # same unique length
+# length(unique(qsecover$qsecover_id)) # 26357
+# length(unique(qsecover$level_1_id))  # 26357
+# # same values
+# qsecover$qsecover_id[!(qsecover$qsecover_id %in% qsecover$level_1_id)]
+# qsecover$level_1_id[!(qsecover$level_1_id %in% qsecover$qsecover_id)]
+# # but they do not always equal each other
+# # qsecover_id stays sequential, and level_1_id jumps to 1500
+# qsecover$qsecover_id[which(qsecover$qsecover_id != qsecover$level_1_id)]
+# qsecover$level_1_id[which(qsecover$level_1_id != qsecover$qsecover_id)]
+# #View(qsecover[990:1050, c("qsecover_id", "level_1_id")])
 
 
 # w_men missing? numero de menage
