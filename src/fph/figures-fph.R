@@ -33,7 +33,7 @@ dat <- readRDS("./gen/fph/output/fph-tips.rds")
 mldhs <- readRDS("./gen/dhs/output/mldhs-bd-tips.rds")
 ################################################################################
 
-# Missing dob -------------------------------------------------------------
+# Table missing dob -------------------------------------------------------------
 
 # non-mutually exclusive table
 total <- sum(subset(aud1, variable %in% c("total"))$n)
@@ -74,27 +74,28 @@ kbl(tab2, format = "latex", booktabs = TRUE, row.names = FALSE, linesep = "",
     caption = "Reporting completeness for DOB")
 
 
-# Missing dob by pregnancy outcome ----------------------------------------
+# Table missing dob by pregnancy outcome ----------------------------------------
 
 subset(aud2, is.na(q223))
+#subset(aud2, is.na(q223_aug))
 
 tab3 <- aud2 %>%
-  mutate(q223 = case_when(
-    q223 == 1 ~ "Live birth",
-    q223 == 2 ~ "Stillbirth",
-    q223 == 3 ~ "Miscarriage",
-    q223 == 4 ~ "Abortion",
+  mutate(q223_aug = case_when(
+    q223_aug == 1 ~ "Live birth",
+    q223_aug == 2 ~ "Stillbirth",
+    q223_aug == 3 ~ "Miscarriage",
+    q223_aug == 4 ~ "Abortion",
     TRUE ~ NA_character_)) %>%
-  group_by(q223, dob_type) %>%
+  group_by(q223_aug, dob_type) %>%
   summarise(n = n(), .groups = "drop") %>%
   bind_rows(
     aud2 %>%
       group_by(dob_type) %>%
       summarise(n = n(), .groups = "drop") %>%
-      mutate(q223 = "Total")
+      mutate(q223_aug = "Total")
   ) %>%
   pivot_wider(
-    names_from = q223,
+    names_from = q223_aug,
     values_from = n
   )
 tab3[is.na(tab3)] <- 0
@@ -140,7 +141,7 @@ tab3_pct %>%
                      "Stillbirth" = 2, 
                      "Miscarriage" = 2, 
                      "Abortion" = 2, 
-                     "NA" = 2,
+                     "Missing" = 2,
                      "Total" = 2))
  
 # Missing dob by pregnancy outcome (figure) -------------------------------
@@ -201,10 +202,10 @@ aud2 %>%
         axis.text.x = element_text(angle = 30, hjust = .75))
 
 
-# Missing dob by year -----------------------------------------------------
+# Missing dob by tips -----------------------------------------------------
 
 nrow(subset(aud2, is.na(q220y))) # 50
-nrow(subset(aud2, !(q216 == 1))) # 4823
+nrow(subset(aud2, !(q216 == 1))) # 4827
 nrow(subset(aud2, !(q216 == 1) & is.na(q220y))) # 1
 
 p <- aud2 %>%
@@ -452,7 +453,8 @@ p <- ggdraw() +
 
 ggsave("./gen/fph/figures/aod.png", p, dpi = 300, width = 6, height = 3)
 
-# AOD heaping plots ----------------------------------------------------------
+
+# Distribution day of death - 7d ------------------------------------------
 
 p1 <- dat %>%  
   filter(event == 1 & tips != ">15") %>%
@@ -472,6 +474,9 @@ p1 <- dat %>%
   theme_bw() +
   theme(text = element_text(size = 10), title = element_text(size = 8))
 ggsave("./gen/fph/figures/heaping-aod-7d.png", p1, dpi = 300, width = 6, height = 3)
+
+
+# Distribution month of death - 12m ---------------------------------------
 
 # heaping of age at death at 12 months, measured by the relative
 # difference of the number of deaths at 12 months from the average for months 10-14, multiplied by 100.
@@ -494,12 +499,15 @@ p2 <- dat %>%
   theme(text = element_text(size = 10), title = element_text(size = 8))
 ggsave("./gen/fph/figures/heaping-aod-12m.png", p2, dpi = 300, width = 6, height = 3)
 
-# Sex ratios ---------------------------------------------------------------
+
+# Table SRB ---------------------------------------------------------------
 
 # Observed sex ratio at birth (expected = 1.03)
 # negative deviation means fewer boys than expected
 # positive deviation means fewer girls than expected
 dat %>%
+  filter(q223_aug == 1) %>%
+  filter(tips != ">15") %>%
   mutate(q219 = ifelse(q219 == 1, "Garçon", "Fille")) %>%
   group_by(tips, q219) %>%
   summarise(n = n()) %>%
@@ -509,13 +517,15 @@ dat %>%
     values_from = n
   ) %>%
   mutate(SRB = sprintf("%0.2f",round(Garçon/Fille,2))) %>% 
-  mutate(tips = factor(tips, levels = c("0-4", "5-9", "10-14", ">15"))) %>%
+  mutate(tips = factor(tips, levels = c("0-4", "5-9", "10-14"))) %>%
+  mutate(`NA` = ifelse(is.na(`NA`), 0, `NA`)) %>%
   arrange(tips) %>%
   kbl(format = "latex", booktabs = TRUE, row.names = FALSE, linesep = "",
+      format.args = list(big.mark = ",", scientific = FALSE),
+      label = "srb",
       col.names = c("Years prior to survey", "Female", "Male", "Missing", "SRB"),
-      caption = "Sex ratio at birth in REACH-Mali FPH.")
+      caption = "Sex ratio at birth for live births in REACH-Mali FPH.")
 
-         
 # Percent of deaths that are neonatal -------------------------------------
 
 dat %>%
@@ -540,7 +550,47 @@ dat %>%
 # Drop imputed dobs
 dobcomp <- subset(dat, q220m_imp_ind == 0 & q220d_imp_ind == 0)
 
-# Pregnancy outcome reporting ---------------------------------------------
+# Pregnancy outcomes by age distribution of mother ------------------------
+
+p <- dat %>%
+  mutate(q223_aug = case_when(
+    q223_aug == 1 ~ "Live birth",
+    q223_aug == 2 ~ "Stillbirth",
+    q223_aug == 3 ~ "Miscarriage",
+    q223_aug == 4 ~ "Abortion",
+    TRUE ~ "Missing"),
+    q223_aug = factor(
+      q223_aug,
+      levels = c(
+        "Live birth",
+        "Stillbirth",
+        "Miscarriage",
+        "Abortion",
+        "Missing")
+    )
+  ) %>%
+  group_by(agecat_resp, q223_aug) %>%
+  summarise(n = n()) %>%
+  ggplot() +
+  geom_bar(aes(x=agecat_resp, y = n), fill = "#0D0887FF", position = "dodge", stat = "identity") +
+  #scale_fill_viridis_d(option = "C", name = "Âge")  +
+  labs(
+    #title = "Résultat de la grossesse selon l’âge des enquêtées",
+    #x = "Résultat de la grossesse",
+    title = "Pregnancy outcomes by age of respondent",
+    x = "Age",
+    y = "n"
+  ) +
+  facet_wrap(~q223_aug, scale = "free") +
+  theme_bw() +
+  theme(text = element_text(size = 10), title = element_text(size = 8),
+        axis.text.x = element_text(angle = 30, hjust = .75))
+ggsave("./gen/fph/figures/pregout-byage.png", p, dpi = 300, width = 6, height = 4)
+
+# I don't like this figure because it is mixing the sample composition (which had many more you than old women) and the number of children born (the small sample of women 45-49 are reporting a lot of children each). and i don't think it's that informative.
+
+
+# Table pregnancy outcomes ------------------------------------------------
 
 tab <- dat %>%
   mutate(q223_aug = case_when(
@@ -563,53 +613,49 @@ tab <- dat %>%
 total <- sum(tab$n)
 tab <- rbind(tab, data.frame(q223_aug = "Total", n = total))
 tab$per <- sprintf("%0.1f",round(tab$n/total*100, 1))
-
 dat %>%
   group_by(q223_aug) %>%
   summarise(n=n()) %>%
   filter(is.na(q223_aug))  # 289
 317 - 289
-
 kbl(tab, format = "latex", booktabs = TRUE, row.names = FALSE, linesep = "",
     format.args = list(big.mark = ",", scientific = FALSE), 
     #col.names = c("Résultat de la grossesse", "N", "%"), 
     col.names = c("Pregnancy outcome", "N", "%"), 
     caption = "Reporting completeness for pregnancy outcomes")
 
-# Pregnancy outcomes by age distribution of mother ------------------------
+# Table of average pregnancy outcomes by mother age -----------------------
 
-p <- dat %>%
+dat %>%
   mutate(q223_aug = case_when(
     q223_aug == 1 ~ "Live birth",
     q223_aug == 2 ~ "Stillbirth",
     q223_aug == 3 ~ "Miscarriage",
     q223_aug == 4 ~ "Abortion",
-    TRUE ~ NA_character_),
+    TRUE ~ "Missing"),
     q223_aug = factor(
       q223_aug,
       levels = c(
         "Live birth",
         "Stillbirth",
         "Miscarriage",
-        "Abortion")
+        "Abortion",
+        "Missing")
     )
   ) %>%
-  group_by(agecat_resp, q223_aug) %>%
+  group_by(level_1_id, agecat_resp, q223_aug) %>%
   summarise(n = n()) %>%
-  ggplot() +
-  geom_bar(aes(x=q223_aug, y = n, fill = agecat_resp), position = "dodge", stat = "identity") +
-  scale_fill_viridis_d(option = "C", name = "Âge")  +
-  labs(
-    #title = "Résultat de la grossesse selon l’âge des enquêtées",
-    #x = "Résultat de la grossesse",
-    title = "Pregnancy outcome by age of respondent",
-    x = "Pregnancy outcome",
-    y = "n"
-  ) +
-  theme_bw() +
-  theme(text = element_text(size = 10), title = element_text(size = 8),
-        axis.text.x = element_text(angle = 30, hjust = .75))
-ggsave("./gen/fph/figures/pregout-byage.png", p, dpi = 300, width = 5, height = 3)
+  group_by(agecat_resp, q223_aug) %>%
+  summarise(avg = sprintf("%0.2f", round(mean(n), 2))) %>%
+  pivot_wider(
+    names_from = q223_aug,
+    values_from = avg
+  ) %>%
+  kbl(format = "latex", booktabs = TRUE, row.names = FALSE, linesep = "",
+      format.args = list(big.mark = ",", scientific = FALSE), 
+      col.names = c("Mother age", "Live birth", "Stillbirth", "Miscarriage", "Abortion"), 
+      label = c("fph-avgn"),
+      caption = "Average number of pregnancy outcomes reported by age of mother.") 
 
 # Births by year of birth -------------------------------------------------
 
@@ -689,8 +735,7 @@ final_plot <- ggarrange(
 ggsave("./gen/fph/figures/fph-births-deaths-byyear.png",
        final_plot, dpi = 300, width = 6, height = 3)
 
-
-# Births/deaths by years prior to survey Mali DHS ---------------------
+# Mali DHS births by years prior to survey --------------------------------
 
 p <- mldhs %>%
   filter(!is.na(yob)) %>%
@@ -706,6 +751,8 @@ p <- mldhs %>%
         legend.background = element_blank())
 ggsave("./gen/fph/figures/mldhs-births-byyear.png", p, dpi = 300, width = 6, height = 4)
 
+# Mali DHS deaths by years prior to survey --------------------------------
+
 p <- mldhs %>%
   filter(!is.na(yod) & tips_yod <= 0) %>%
   group_by(SurveyId, tips_yod) %>%
@@ -720,8 +767,62 @@ p <- mldhs %>%
         legend.background = element_blank())
 ggsave("./gen/fph/figures/mldhs-deaths-byyear.png", p, dpi = 300, width = 6, height = 4)
 
+# Mali DHS plus REACH births by years prior to survey ---------------------
 
-# Agreement between SBH and FPH -------------------------------------------
+rtips_yob <- dat %>%
+  mutate(yob = floor(dob_dec),
+         yoint = floor(v008_dec),
+         tips_yob = -(yoint - yob),
+         SurveyId = "REACH-Mali") %>%
+  select(SurveyId, tips_yob)
+p <- mldhs %>%
+  filter(!is.na(yob)) %>%
+  bind_rows(rtips_yob) %>%
+  group_by(SurveyId, tips_yob) %>%
+  summarise(n = n()) %>%
+  ggplot() +
+  geom_bar(aes(x = tips_yob, y = n), stat = "identity", fill = "#0D0887FF") +
+  facet_wrap(~SurveyId) +
+  labs(y = "n", x = "Years prior to survey", title = "Births") +
+  theme_bw() +
+  theme(text = element_text(size = 10), title = element_text(size = 8),
+        legend.box.background = element_blank(),
+        legend.background = element_blank())
+ggsave("./gen/fph/figures/mldhs-births-byyear.png", p, dpi = 300, width = 6, height = 5)
+
+# Mali DHS plus REACH deaths by years prior to survey ---------------------
+
+# why are there so many deaths in 2024 and 2025?
+# dat %>%
+#   filter(!is.na(dod_dec)) %>%
+#   select(dob, dob_dec, dod, dod_dec) %>%
+#   mutate(dodrd = floor(dod_dec)) %>%
+#   group_by(dodrd) %>%
+#   summarise(n()) %>% View
+
+rtips_yod <- dat %>%
+  filter(!is.na(dod_dec)) %>%
+  mutate(yod = floor(dod_dec),
+         yoint = floor(v008_dec),
+         tips_yod = -(yoint - yod),
+         SurveyId = "REACH-Mali") %>%
+  select(SurveyId, tips_yod)
+p <- mldhs %>%
+  filter(!is.na(yod) & tips_yod <= 0) %>%
+  bind_rows(rtips_yod) %>%
+  group_by(SurveyId, tips_yod) %>%
+  summarise(n = n()) %>%
+  ggplot() +
+  geom_bar(aes(x = tips_yod, y = n), stat = "identity", fill = "#0D0887FF") +
+  facet_wrap(~SurveyId) +
+  labs(y = "n", x = "Years prior to survey", title = "Deaths") +
+  theme_bw() +
+  theme(text = element_text(size = 10), title = element_text(size = 8),
+        legend.box.background = element_blank(),
+        legend.background = element_blank())
+ggsave("./gen/fph/figures/mldhs-deaths-byyear.png", p, dpi = 300, width = 6, height = 5)
+
+# Agreement between SBH and FPH births/pregs ------------------------------
 
 plota <- aud4dat %>%
   filter(dif_bth != 0) %>%
@@ -738,18 +839,20 @@ p <- plot %>%
   ggplot() +
   geom_histogram(aes(x=dif), fill = "#0D0887FF") +
   facet_wrap(~facet) +
-  labs(y = "n", x = "Difference, sbh minus fph", title = "Disagreement in SBH and FPH: live births, pregnancies") +
+  labs(y = "n", x = "Difference (Ref: SBH)", title = "Disagreement in SBH and FPH: live births, pregnancies") +
   theme_bw() +
   theme(text = element_text(size = 10), title = element_text(size = 8),
         legend.box.background = element_blank(),
         legend.background = element_blank())
 ggsave("./gen/fph/figures/fph-sbh-bth-disagreement.png", p, dpi = 300, width = 6, height = 3)
 
+# Agreement between SBH and FPH deaths ------------------------------------
+
 p <- aud5dat %>%
   filter(dif_dth != 0) %>%
   ggplot() +
   geom_histogram(aes(x=dif_dth), fill = "#0D0887FF") +
-  labs(y = "n", x = "Difference, sbh minus fph", title = "Disagreement in SBH and FPH: deaths") +
+  labs(y = "n", x = "Difference (Ref.: SBH)", title = "Disagreement in SBH and FPH: deaths") +
   scale_x_continuous(breaks = -5:5) +
   theme_bw() +
   theme(text = element_text(size = 10), title = element_text(size = 8),
@@ -757,7 +860,8 @@ p <- aud5dat %>%
         legend.background = element_blank())
 ggsave("./gen/fph/figures/fph-sbh-dth-disagreement.png", p, dpi = 300, width = 3, height = 3)
 
-# Table of agreement between SBH and FPH ----------------------------------
+
+# Table SBH and FPH birth/preg agreement ----------------------------------
 
 tabtotal <- data.frame(dif = "Total",
                        `n_lb` = unique(aud4tab$total),
@@ -777,12 +881,13 @@ tabaud4 <- rbind(tabaud4, tabtotal)
 tabaud4 %>%
   kbl(format = "latex", booktabs = TRUE, row.names = FALSE, linesep = "",
     format.args = list(big.mark = ",", scientific = FALSE), 
-    col.names = c("Difference (ref: sbh)", "N", "%", "N", "%"), 
-    caption = "Agreement number of live births and pregnancies between SBH and FPH. Difference is calculated with respect to SBH. Negative values indicate more events reported in the FPH than SBH, positive values indicate the reverse. Denominator is all women who took part in the mortality survey. The FPH missing category does not include cases where 0 pregnancies/births were reported in SBH and thus a FPH was not conducted-- these cases were considered to agree.", label = "fph-sbh-bth-agreement") %>%
+    col.names = c("Difference (Ref.: SBH)", "N", "%", "N", "%"), 
+    caption = "Agreement number of live births and pregnancies between SBH and FPH. Difference is calculated with respect to SBH. Negative values indicate more events reported in the FPH than SBH, positive values indicate the reverse. The FPH missing category does not include cases where 0 pregnancies/births were reported in SBH and thus a FPH was not conducted-- these cases were considered to agree.", label = "fph-sbh-bth-agreement") %>%
     add_header_above(c(" " = 1, 
                      "Live births" = 2, 
                      "Pregnancies" = 2))
 
+# Table SBH and FPH death agreement ---------------------------------------
 
 tabtotal <- data.frame(dif = "Total",
                        n_Deaths = unique(aud5tab$total),
@@ -795,11 +900,10 @@ tabaud5 <- aud5tab %>%
     values_from = c(n, per)
   )
 tabaud5 <- rbind(tabaud5, tabtotal)
-tabaud5 <- rbind(tabaud5, tabtotal)
 tabaud5 %>%
   kbl(format = "latex", booktabs = TRUE, row.names = FALSE, linesep = "",
       format.args = list(big.mark = ",", scientific = FALSE), 
-      col.names = c("Difference (ref: sbh)", "N", "%"), 
-      caption = "Agreement number of deaths between SBH and FPH. Difference is calculated with respect to SBH. Negative values indicate more events reported in the FPH than SBH, positive values indicate the reverse. Denominator is all women who took part in the mortality survey. The FPH missing category does not include cases where 0 pregnancies/births were reported in SBH and thus a FPH was not conducted-- these cases were considered to agree.", label = "fph-sbh-dth-agreement") %>%
+      col.names = c("Difference (Ref.: SBH)", "N", "%"), 
+      caption = "Agreement number of deaths between SBH and FPH. Difference is calculated with respect to SBH. Negative values indicate more events reported in the FPH than SBH, positive values indicate the reverse. The FPH missing category does not include cases where 0 pregnancies/births were reported in SBH and thus a FPH was not conducted-- these cases were considered to agree.", label = "fph-sbh-dth-agreement") %>%
   add_header_above(c(" " = 1, 
                      "Deaths" = 2))
