@@ -41,7 +41,7 @@ day_counts <- valid_dates %>%
 # DHS data has already been limited to live births (bc also comparing with dhs that are fbh)
 freqdayb <- dat %>%
   filter(tips != ">15") %>%
-  filter(q216 == "Né vivant") %>%
+  filter(q223_aug == 1) %>%
   mutate(tips = factor(tips, levels = c("0-4", "5-9", "10-14"))) %>%
   mutate(dobd = day(dob)) %>%
   group_by(dobd, tips) %>%
@@ -88,8 +88,7 @@ dhs_dob %>%
   theme_bw() +
   theme(text = element_text(size = 10), title = element_text(size = 8))
 
-
-# AOD heaping plots ----------------------------------------------------------
+# Deviation for deaths at 7d ----------------------------------------------
 
 # calculate deviance for REACH
 reldif7d <- dat %>%
@@ -117,6 +116,8 @@ p1 <- dhs_aad %>%
 ggsave("./gen/fph/figures/dhs-heaping-aod-7d.png", p1, dpi = 300, width = 6, height = 3)
 
 
+# Deviation for deaths at 12m ---------------------------------------------
+
 reldif12m <- dat %>%
   filter(event == 1 & aadm >= 10 & aadm <= 14 & tips != ">15") %>%
   mutate(tips = factor(tips, levels =  c("0-4", "5-9", "10-14"))) %>%
@@ -141,11 +142,28 @@ p2 <- dhs_aad %>%
   theme(text = element_text(size = 10), title = element_text(size = 8))
 ggsave("./gen/fph/figures/dhs-heaping-aod-12m.png", p2, dpi = 300, width = 6, height = 3)
 
-# Sex ratio plots ---------------------------------------------------------
+# where does reach mali fall with respect to dhs?
+# 0-4
+sum(subset(reldif12m, tips == "0-4")$dev > subset(dhs_aad, variable == "reldif12m" & tips == "0-4")$dev) # 42
+sum(subset(reldif12m, tips == "0-4")$dev < subset(dhs_aad, variable == "reldif12m" & tips == "0-4")$dev) # 12
+sum(subset(reldif12m, tips == "0-4")$dev > subset(dhs_aad, variable == "reldif12m" & tips == "0-4")$dev)/
+  nrow(subset(dhs_aad, variable == "reldif12m" & tips == "0-4")) # 0.78
+# 5-9
+sum(subset(reldif12m, tips == "5-9")$dev > subset(dhs_aad, variable == "reldif12m" & tips == "5-9")$dev) # 36
+sum(subset(reldif12m, tips == "5-9")$dev < subset(dhs_aad, variable == "reldif12m" & tips == "5-9")$dev) # 24
+sum(subset(reldif12m, tips == "5-9")$dev > subset(dhs_aad, variable == "reldif12m" & tips == "5-9")$dev)/
+nrow(subset(dhs_aad, variable == "reldif12m" & tips == "5-9")) # 0.6
+# 10-14
+sum(subset(reldif12m, tips == "10-14")$dev > subset(dhs_aad, variable == "reldif12m" & tips == "10-14")$dev) # 37
+sum(subset(reldif12m, tips == "10-14")$dev < subset(dhs_aad, variable == "reldif12m" & tips == "10-14")$dev) # 19
+sum(subset(reldif12m, tips == "10-14")$dev > subset(dhs_aad, variable == "reldif12m" & tips == "10-14")$dev)/
+  nrow(subset(dhs_aad, variable == "reldif12m" & tips == "10-14")) # 0.66
+  
+# Deviation in SRB --------------------------------------------------------
 
 # sex ratio at birth
 # live births only
-srb <- dat %>%
+reldifsrb <- dat %>%
   filter(tips != ">15") %>%
   mutate(tips = factor(tips, levels = c("0-4", "5-9", "10-14"))) %>%
   filter(q223_aug == 1) %>%
@@ -160,13 +178,30 @@ srb <- dat %>%
   mutate(srb = Garçon/Fille,
          dev = (srb-103/100)/(103/100)*100)
 
+p3 <- dhs_sr %>%
+  filter(variable == "SRB" & tips != ">15") %>% 
+  mutate(tips = factor(tips, levels = c("0-4", "5-9", "10-14"))) %>%
+  ggplot() +
+  geom_histogram(aes(x=dev), bins = 30, fill = "#0D0887FF") +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_vline(data = reldifsrb, aes(xintercept = dev), color = "#DE4968") +
+  geom_text(data = reldifsrb, aes(x = dev, y = 9, label = sprintf("%0.1f",round(dev, 1))), hjust = -.1, color = "#DE4968") +
+  labs(y = "n", x = "Relative deviation (x100)", title = "Distribution of relative deviation of sex ratio at birth from expected") +
+  facet_wrap(~tips, nrow = 1) +
+  theme_bw() +
+  theme(text = element_text(size = 10), title = element_text(size = 8))
+ggsave("./gen/fph/figures/dhs-srb-dev.png", p3, dpi = 300, width = 6, height = 3)
+
+
+# Deviation in SR neonatal deaths -----------------------------------------
+
 # sex ratio of neonatal deaths
 # live births only
-srd <- dat %>%
+reldifsrd <- dat %>%
   filter(tips != ">15") %>%
   mutate(tips = factor(tips, levels = c("0-4", "5-9", "10-14"))) %>%
   filter(q223_aug == 1) %>%
-  filter(q224 == 2 & aadm >= 0 & aadm < 1) %>% # no longer alive
+  filter(q224 == 2 & aadm >= 0 & aadm < 1) %>% # no longer alive, died <1m
   mutate(q219 = ifelse(q219 == 1, "Garçon", "Fille")) %>%
   group_by(tips, q219) %>%
   summarise(n = n()) %>%
@@ -178,20 +213,6 @@ srd <- dat %>%
   mutate(srd = Garçon/Fille,
          dev = (srd-150/100)/(150/100)*100)
 
-p3 <- dhs_sr %>%
-  filter(variable == "SRB" & tips != ">15") %>% 
-  mutate(tips = factor(tips, levels = c("0-4", "5-9", "10-14"))) %>%
-  ggplot() +
-  geom_histogram(aes(x=dev), bins = 30, fill = "#0D0887FF") +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  geom_vline(data = srb, aes(xintercept = dev), color = "#DE4968") +
-  geom_text(data = srb, aes(x = dev, y = 9, label = sprintf("%0.1f",round(dev, 1))), hjust = -.1, color = "#DE4968") +
-  labs(y = "n", x = "Relative deviation (x100)", title = "Distribution of relative deviation of sex ratio at birth from expected") +
-  facet_wrap(~tips, nrow = 1) +
-  theme_bw() +
-  theme(text = element_text(size = 10), title = element_text(size = 8))
-ggsave("./gen/fph/figures/dhs-srb-dev.png", p3, dpi = 300, width = 6, height = 3)
-
 p4 <- dhs_sr %>%
   filter(variable == "SRD" & tips != ">15") %>% 
   mutate(tips = factor(tips, levels = c("0-4", "5-9", "10-14"))) %>%
@@ -199,8 +220,8 @@ p4 <- dhs_sr %>%
   ggplot() +
   geom_histogram(aes(x=dev), bins = 30, fill = "#0D0887FF") +
   geom_vline(xintercept = 0, linetype = "dashed") +
-  geom_vline(data = srd, aes(xintercept = dev), color = "#DE4968") +
-  geom_text(data = srd, aes(x = dev, y = 11, label = sprintf("%0.1f",round(dev, 1))), hjust = -.1, color = "#DE4968") +
+  geom_vline(data = reldifsrd, aes(xintercept = dev), color = "#DE4968") +
+  geom_text(data = reldifsrd, aes(x = dev, y = 11, label = sprintf("%0.1f",round(dev, 1))), hjust = -.1, color = "#DE4968") +
   labs(y = "n", x = "Relative deviation (x100)", title = "Distribution of relative deviation of sex ratio of neonatal deaths from expected") +
   facet_wrap(~tips, nrow = 1) +
   theme_bw() +
