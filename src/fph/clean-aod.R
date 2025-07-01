@@ -1,7 +1,8 @@
 ################################################################################
 #' @description Adjust values for impossible ages of death according to rules,
-#' when not possible to discern how to correct aod, drop
-#' @return 
+#' Drop those with impossible AOD
+#' @return (i) file with no impossible ages of death
+#' (ii) dat_aud-aad: number of dropped observations due to impossible AOD
 ################################################################################
 #' Clear environment
 rm(list = ls())
@@ -10,30 +11,8 @@ library(tidyr)
 library(dplyr)
 library(lubridate)
 #' Inputs
-dat <- readRDS("./gen/fph/temp/fph-qsecover-qwsec01.rds")
+dat <- readRDS("./gen/fph/temp/fph-recover-doby.rds")
 ################################################################################
-
-nrow(dat) # 79843
-nrow(dat) == length(unique(dat$qwsec2b_id)) # unique identifier
-length(unique(dat$level_1_id)) # should be mother identifier
-
-# Indicator for event (death)
-dat$event <- ifelse(dat$q224 == 2, 1, 0)
-# check that when event is missing, it was not a live birth (q223_aug != 1)
-table(subset(dat, is.na(event))$q223_aug, useNA =  "always")
-
-# Year of birth is missing
-nrow(subset(dat, is.na(q220y))) # 50
-# Recover when possible from current age (q225)
-dat <- dat %>%
-  mutate(q220y = case_when(
-    !is.na(q225) & is.na(q220y) ~ as.numeric(format(qintdate, "%Y")) - q225,
-    TRUE ~ q220y
-  ))
-nrow(subset(dat, is.na(q220y))) # 48
-
-# Drop observations that are still missing year of birth
-dat <- subset(dat, !is.na(q220y))
 
 # q228 Age au décès
 # Replace blank pace with 0
@@ -41,8 +20,8 @@ dat$q228_clean <- gsub(" ", "0", dat$q228)
 dat$q228_clean <- as.numeric(as.character(dat$q228_clean))
 unique(dat$q228)
 unique(dat$q228_clean)
-nrow(subset(dat, !is.na(q228))) # 6916
-nrow(subset(dat, !is.na(q228_clean))) # 6916
+nrow(subset(dat, !is.na(q228))) # 6921
+nrow(subset(dat, !is.na(q228_clean))) # 6921
 
 # Redistribute explicitly missing values in q228
 nrow(subset(dat, !is.na(dat$q228_clean) & q228_clean >= 190 & q228_clean < 200)) # 0
@@ -74,13 +53,41 @@ dat$aady <- dat$aad_value
 dat$aady[which(dat$aad_unit == 1)] <- dat$aady[which(dat$aad_unit == 1)] / 365.25
 dat$aady[which(dat$aad_unit == 2)] <- dat$aady[which(dat$aad_unit == 2)] / 12
 
+#View(dat[,c("event", "q228", "q228_clean","aad_unit", "aad_value", "aady", "aadm", "aadd")])
+
 # Format interview date
 dat$qintdate_y <- lubridate::year(dat$qintdate)
 dat$qintdate_m <- lubridate::month(dat$qintdate)
 dat$qintdate_d <- lubridate::day(dat$qintdate)
 
-nrow(subset(dat, !is.na(aad_unit))) # 6916
-nrow(subset(dat, !is.na(aad_value))) # 6916
+nrow(subset(dat, !is.na(aad_unit))) # 6921
+nrow(subset(dat, !is.na(aad_value))) # 6921
+nrow(subset(dat, !is.na(aadd))) # 6921
+nrow(subset(dat, !is.na(aadm))) # 6921
+nrow(subset(dat, !is.na(aady))) # 6921
+
+# check years of death
+# For those with complete DOBs (where the dob string successfully parses),
+# the distribution looks pretty normal with tapering in the latest year
+dat %>%
+  filter(!is.na(aadd)) %>% 
+  mutate(dob = as.Date(paste(q220y, q220m, q220d, sep = "-"), format = "%Y-%m-%d"),
+         dod = dob + aadd) %>%
+  mutate(yod_fl = floor(decimal_date(dod))) %>%
+  group_by(yod_fl) %>%
+  summarise(n = n()) %>%
+  ggplot() +
+  geom_bar(aes(x=yod_fl, y=n), stat = "identity")
+# However, when I include all (just by using year of birth) there are a lot of DODs in 2025
+# This looks a bit problematic and my corrections to AOD have a minimal impact on this. More likely a data collection issue.
+dat %>%
+  filter(!is.na(aadd)) %>% 
+  mutate(dod = q220y + aady) %>%
+  mutate(yod_fl = floor(dod)) %>%
+  group_by(yod_fl) %>%
+  summarise(n = n()) %>%
+  ggplot() +
+  geom_bar(aes(x=yod_fl, y=n), stat = "identity")
 
 # Count impossible aad ----------------------------------------------------
 
@@ -158,6 +165,9 @@ dat <- dat %>%
 nrow(subset(dat, aad_value_orig != aad_value)) # 36 changes
 nrow(subset(dat, aad_unit_orig != aad_unit)) # 10 changes
 
+# identify deaths with changes
+dat$flag[dat$aad_value_orig != dat$aad_value] <- 1
+
 # Recalculate aadm, aadd
 dat$aadm <- dat$aad_value
 dat$aadm[which(dat$aad_unit == 1)] <- dat$aadm[which(dat$aad_unit == 1)] / 30.5
@@ -166,6 +176,15 @@ dat$aadd <- dat$aad_value
 dat$aadd[which(dat$aad_unit == 2)] <- dat$aadd[which(dat$aad_unit == 2)] * 30.5
 dat$aadd[which(dat$aad_unit == 3)] <- dat$aadd[which(dat$aad_unit == 3)] * 365.25
 
+# How many deaths were shifted to 2025 with this correction?
+n_2025shift1 <- dat %>%
+  filter(!is.na(flag) & flag == 1) %>%
+  mutate(newdod = dob + aadd,
+         newyod = year(newdod),
+         oldyod = year(dod)) %>%
+  filter(oldyod != 2025 & newyod == 2025) %>%
+  nrow()
+
 # dat %>%
 #   filter(qwsec2b_id %in% foo) %>%
 #   mutate(dod = dob + aadd,
@@ -173,7 +192,7 @@ dat$aadd[which(dat$aad_unit == 3)] <- dat$aadd[which(dat$aad_unit == 3)] * 365.2
 #   select(q220y, q220m, q220d, dob, aad_unit, aad_value, aadm, aadd, dod, qintdate, dif_d, dif_m, dif_y, flag) %>% 
 #   View()
 
-# Drop
+# Drop those with AOD that still impossible
 id_drop1 <- dat %>%
   filter(!is.na(q220m) & q220m != 98 & !is.na(q220d) & q220d != 98) %>%
   mutate(dob = as.Date(paste(q220y, q220m, q220d, sep = "-"), format = "%Y-%m-%d"),
@@ -181,10 +200,10 @@ id_drop1 <- dat %>%
   filter(dod > qintdate)
 nrow(id_drop1) # 7
 dat <- subset(dat, !(qwsec2b_id %in% id_drop1$qwsec2b_id))
-nrow(dat) # 79788
+nrow(dat) # 79766
 
-nrow(subset(dat, !is.na(aad_unit))) # 6909, 7 less than 6916
-nrow(subset(dat, !is.na(aad_value))) # 6909, 7 less than 6916
+nrow(subset(dat, !is.na(aad_unit))) # 6914, 7 less than 6921
+nrow(subset(dat, !is.na(aad_value))) # 6914, 7 less than 6921
 
 # Impossible aad - based on ym --------------------------------------------
 
@@ -235,12 +254,15 @@ dat <- dat %>%
            TRUE ~ aad_unit
          )
   ) 
-nrow(subset(dat, aad_value_orig != aad_value)) # 4 changes
-nrow(subset(dat, aad_unit_orig != aad_unit)) # 1 change
-
 # It's ok if there is a warning message here for when earliestdob failed to parse.
 # This happens when month was either missing or 98
 # And these AAD don't get adjusted
+
+nrow(subset(dat, aad_value_orig != aad_value)) # 4 changes
+nrow(subset(dat, aad_unit_orig != aad_unit)) # 1 change
+
+# identify deaths with changes
+dat$flag[dat$aad_value_orig != dat$aad_value] <- 1
 
 # Recalculate aadm, aadd
 dat$aadm <- dat$aad_value
@@ -250,7 +272,16 @@ dat$aadd <- dat$aad_value
 dat$aadd[which(dat$aad_unit == 2)] <- dat$aadd[which(dat$aad_unit == 2)] * 30.5
 dat$aadd[which(dat$aad_unit == 3)] <- dat$aadd[which(dat$aad_unit == 3)] * 365.25
 
+# How many deaths were shifted to 2025 with this correction?
+n_2025shift2 <- dat %>%
+  filter(!is.na(flag) & flag == 1) %>%
+  mutate(newdod = dob + aadd,
+         newyod = year(newdod),
+         oldyod = year(dod)) %>%
+  filter(oldyod != 2025 & newyod == 2025) %>%
+  nrow()
 
+# View corrections for those that had impossible aod
 # dat %>%
 #  filter(qwsec2b_id %in% foo) %>%
 #  mutate(earliestdob = ymd(sprintf("%04d-%02d-01", q220y, q220m)),
@@ -259,8 +290,7 @@ dat$aadd[which(dat$aad_unit == 3)] <- dat$aadd[which(dat$aad_unit == 3)] * 365.2
 #  select(q220y, q220m, q220d, dob, aad_unit, aad_value, aadm, aadd, dod, qintdate, dif_d, dif_m, dif_y, flag) %>% 
 #  View()
 
-
-# Drop
+# Drop those with AOD that still impossible
 id_drop2 <- dat %>%
   filter(!is.na(q220m) & q220m != 98 & (is.na(q220d) | q220d == 98)) %>%
   mutate(earliestdob = ymd(sprintf("%04d-%02d-01", q220y, q220m)),
@@ -268,10 +298,13 @@ id_drop2 <- dat %>%
   filter(dod > qintdate)
 nrow(id_drop2) # 1
 dat <- subset(dat, !(qwsec2b_id %in% id_drop2$qwsec2b_id))
-nrow(dat) # 79787
+nrow(dat) # 79765
 
-nrow(subset(dat, !is.na(aad_unit))) # 6908, 1 less than 6909
-nrow(subset(dat, !is.na(aad_value))) # 6908, 1 less than 6909
+nrow(subset(dat, !is.na(aad_unit))) # 6913, 1 less than 6914
+nrow(subset(dat, !is.na(aad_value))) # 6913, 1 less than 6914
+nrow(subset(dat, !is.na(aadd))) # 6913
+nrow(subset(dat, !is.na(aadm))) # 6913
+nrow(subset(dat, !is.na(aady))) # 6913
 
 # Impossible aad - based on y ---------------------------------------------
 
@@ -325,6 +358,9 @@ dat <- dat %>%
 nrow(subset(dat, aad_value_orig != aad_value)) # 2 changes
 nrow(subset(dat, aad_unit_orig != aad_unit)) # 5 changes
 
+# identify deaths with changes
+dat$flag[dat$aad_value_orig != dat$aad_value] <- 1
+
 # Recalculate aadm, aadd
 dat$aadm <- dat$aad_value
 dat$aadm[which(dat$aad_unit == 1)] <- dat$aadm[which(dat$aad_unit == 1)] / 30.5
@@ -333,10 +369,16 @@ dat$aadd <- dat$aad_value
 dat$aadd[which(dat$aad_unit == 2)] <- dat$aadd[which(dat$aad_unit == 2)] * 30.5
 dat$aadd[which(dat$aad_unit == 3)] <- dat$aadd[which(dat$aad_unit == 3)] * 365.25
 
-# drop cols
-dat <- dat %>%
-  select(-c(aad_value_orig, aad_unit_orig))
+# How many deaths were shifted to 2025 with this correction?
+n_2025shift3 <- dat %>%
+  filter(!is.na(flag) & flag == 1) %>%
+  mutate(newdod = dob + aadd,
+         newyod = year(newdod),
+         oldyod = year(dod)) %>%
+  filter(oldyod != 2025 & newyod == 2025) %>%
+  nrow()
 
+# View corrections for those that had impossible aod
 # dat %>%
 #  filter(qwsec2b_id %in% foo) %>%
 #  mutate(earliestdob = ymd(sprintf("%04d-%02d-01", q220y, 1)),
@@ -345,7 +387,7 @@ dat <- dat %>%
 #  select(q220y, q220m, q220d, dob, aad_unit, aad_value, aadm, aadd, dod, qintdate, dif_d, dif_m, dif_y, flag) %>%
 #  View()
 
-# Drop
+# Drop those with AOD that still impossible
 id_drop3 <- dat %>%
   filter(is.na(q220m) | q220m == 98) %>%
   mutate(earliestdob = ymd(sprintf("%04d-%02d-01", q220y, 1)),
@@ -353,17 +395,33 @@ id_drop3 <- dat %>%
   filter(dod > qintdate)
 nrow(id_drop3) # 2
 dat <- subset(dat, !(qwsec2b_id %in% id_drop3$qwsec2b_id))
-nrow(dat) # 79785
+nrow(dat) # 79763
 
-nrow(subset(dat, !is.na(aad_unit))) # 6906, 2 less than 6908
-nrow(subset(dat, !is.na(aad_value))) # 6906, 2 less than 6908
+nrow(subset(dat, !is.na(aad_unit))) # 6911, 2 less than 6913
+nrow(subset(dat, !is.na(aad_value))) # 6911, 2 less than 6913
+nrow(subset(dat, !is.na(aadd))) # 6911
+nrow(subset(dat, !is.na(aadm))) # 6911
+nrow(subset(dat, !is.na(aady))) # 6911
+table(dat$event, useNA = "always") # 6911
+table(subset(dat, is.na(event))$q223_aug) # all those missing event were not live births
+
+# Remove columns ----------------------------------------------------------
+
+dat <- dat %>%
+  select(-c(aad_value_orig, aad_unit_orig,
+            dob, dod, dif_d, dif_m, dif_y, earliestdob))
 
 # Save audit --------------------------------------------------------------
 
-n_impossible_aad_corrections <- nrow(id_drop1) + nrow(id_drop2) + nrow(id_drop3) # 10
-dat_aud <- data.frame(variable = c("impossible aad original","impossible aad after corrections"),
+# There are a lot of deaths reported for 2025
+# Check how many deaths i shifted to 2025 in cleaning AOD
+n_2025shift1 + n_2025shift2 + n_2025shift3 # 9
+
+n_impossible_aad_corrections <- nrow(id_drop1) + nrow(id_drop2) + nrow(id_drop3)
+n_impossible_aad_corrections  # 10
+dat_aud_aad <- data.frame(variable = c("impossible aad original","impossible aad after corrections"),
                       n = c(n_impossible_aad_orig, n_impossible_aad_corrections))
-write.csv(dat_aud, paste0("./gen/fph/audit/dat_aud-aad_", format(Sys.Date(), "%Y%m%d"), ".csv"), row.names = FALSE)
+write.csv(dat_aud_aad, paste0("./gen/fph/audit/dat_aud-aad_", format(Sys.Date(), "%Y%m%d"), ".csv"), row.names = FALSE)
 
 # Save --------------------------------------------------------------------
 
