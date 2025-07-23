@@ -9,6 +9,7 @@ library(tidyr)
 library(dplyr)
 library(demogsurv)
 library(survival)
+library(readxl)
 #' Inputs
 source("./src/utils.R")
 fph <- readRDS("./gen/fph/output/fph-tips.rds")
@@ -73,9 +74,9 @@ rates_demog_nosurvdes <- rbind(all, res, reg)
 
 # Weights and sample design  ----------------------------------------------
 
-wt1 <- wt1[, c("GRAPPE", "CStrate")]
-wt2 <- wt2[, c("GRAPPE", "Lstatut", "Poids normalisé des femmes de 15-49 ans")]
-wt <- merge(wt1, wt2, by = "GRAPPE")
+df_wt1 <- wt1[, c("GRAPPE", "CStrate")]
+df_wt2 <- wt2[, c("GRAPPE", "Lstatut", "Poids normalisé des femmes de 15-49 ans")]
+wt <- merge(df_wt1, df_wt2, by = "GRAPPE")
 names(wt) <- c("grappe", "strate", "area", "wt")
 wt$strate <- as.numeric(wt$strate)
 wt$grappe <- as.numeric(wt$grappe)
@@ -100,6 +101,7 @@ dat$v024 <- dat$strate
 dat$v025 <- 1
 # byvar
 dat$qtype <- factor(dat$qtype)
+dat$qlregion <- factor(dat$qlregion)
 dat$strate <- factor(dat$strate)
 dat$area <- factor(dat$area)
 
@@ -123,6 +125,16 @@ res <- rbind(nmr_res, pnmr_res, u5m_res)
 names(res)[which(names(res) == "qtype")] <- "byvar"
 res$type <- "Residence"
 
+nmr_reg <- calc_nqx(dat, ~qlregion, tips = c(0, 5, 10, 15), agegr = c(0, 1)/12, scale = 1, origin = 0)
+nmr_reg$agegrp <- "Neonatal"
+pnmr_reg <- calc_nqx(dat, ~qlregion, tips = c(0, 5, 10, 15), agegr = c(1, 3, 5, 12, 24, 36, 48, 60)/12, scale = 1, origin = 0)
+pnmr_reg$agegrp <- "Postneonatal"
+u5m_reg <- calc_nqx(dat, ~qlregion, tips = c(0, 5, 10, 15), agegr = c(0, 1, 3, 5, 12, 24, 36, 48, 60)/12, scale = 1, origin = 0)
+u5m_reg$agegrp <- "Under5"
+reg <- rbind(nmr_reg, pnmr_reg, u5m_reg)
+names(reg)[which(names(reg) == "qlregion")] <- "byvar"
+reg$type <- "Region"
+
 nmr_strata <- calc_nqx(dat, ~strate, tips = c(0, 5, 10, 15), agegr = c(0, 1)/12, scale = 1, origin = 0)
 nmr_strata$agegrp <- "Neonatal"
 pnmr_strata <- calc_nqx(dat, ~strate, tips = c(0, 5, 10, 15), agegr = c(1, 3, 5, 12, 24, 36, 48, 60)/12, scale = 1, origin = 0)
@@ -143,7 +155,7 @@ area <- rbind(nmr_area, pnmr_area, u5m_area)
 names(area)[which(names(area) == "area")] <- "byvar"
 area$type <- "Area"
 
-rates_demog <- rbind(all, res, strata, area)
+rates_demog <- rbind(all, res, reg, strata, area)
 
 # Save output(s) ----------------------------------------------------------
 
