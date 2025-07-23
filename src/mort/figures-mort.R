@@ -20,6 +20,167 @@ gap <- readRDS("./gen/mort/output/gapu5m-for-plots-ci.rds")
 reach <- readRDS("./gen/mort/output/reach-rates-ci.rds")
 ################################################################################
 
+
+# Combined table ----------------------------------------------------------
+
+# all
+reach_all <- reach %>%
+  filter(type == "All" & cut_time %in% c("0-4", "5-9", "10-14")) %>%
+  mutate(cut_time = factor(cut_time, levels = c("0-4", "5-9", "10-14")),
+         agegrp = factor(agegrp, levels = c("Neonatal", "Postneonatal", "Under5"),
+                         labels = c("Neonatal", "Postneonatal", "Under-5"))) %>%
+  select(cut_time, agegrp, qx, qx_lower, qx_upper) %>% #  events, pyears, mx,
+  mutate(qx = sprintf("%0.1f",round(qx * 1000, 1)),
+         qx_lower = sprintf("%0.1f",round(qx_lower * 1000, 1)),
+         qx_upper = sprintf("%0.1f",round(qx_upper * 1000, 1)),
+         ci = paste0("(", qx_lower, ", ", qx_upper, ")")) %>%
+  select(cut_time, agegrp, qx, ci) %>%
+  pivot_longer(cols = c(qx, ci), names_to = "stat", values_to = "value") %>%
+  unite(temp_col, agegrp, cut_time, sep = "_") %>%
+  pivot_wider(names_from = temp_col, values_from = value) %>%
+  mutate(type = "All",
+         byvar = "All") %>%
+  relocate(byvar, everything())
+
+col_order <- expand.grid(
+  agegrp = c("Neonatal", "Postneonatal", "Under-5"),
+  cut_time = c("0-4", "5-9", "10-14")
+) %>%
+  mutate(name = paste(agegrp, cut_time, sep = "_")) %>%
+  pull(name)
+col_order <- c("type", "byvar", col_order)
+
+# region
+reach_reg <- reach %>%
+  filter(type %in% c("Region") & cut_time %in% c("0-4", "5-9", "10-14")) %>%
+  mutate(cut_time = factor(cut_time, levels = c("0-4", "5-9", "10-14")),
+         agegrp = factor(agegrp, levels = c("Neonatal", "Postneonatal", "Under5"),
+                         labels = c("Neonatal", "Postneonatal", "Under-5"))) %>%
+  select(byvar, cut_time, agegrp, qx, qx_lower, qx_upper) %>% #  events, pyears, mx,
+  arrange(byvar, cut_time, agegrp) %>%
+  mutate(qx = sprintf("%0.1f",round(qx * 1000, 1)),
+         qx_lower = sprintf("%0.1f",round(qx_lower * 1000, 1)),
+         qx_upper = sprintf("%0.1f",round(qx_upper * 1000, 1)),
+         ci = paste0("(", qx_lower, ", ", qx_upper, ")")) %>% 
+  select(byvar, cut_time, agegrp, qx, ci) %>%
+  pivot_longer(cols = c(qx, ci), names_to = "stat", values_to = "value") %>%
+  unite(temp_col, agegrp, cut_time, sep = "_") %>%
+  pivot_wider(names_from = temp_col, values_from = value) %>%
+  mutate(type = "Region")
+
+# strata
+reach_strat <- reach %>%
+  filter(type %in% c("Strata") & cut_time %in% c("0-4", "5-9", "10-14")) %>%
+  mutate(cut_time = factor(cut_time, levels = c("0-4", "5-9", "10-14")),
+         agegrp = factor(agegrp, levels = c("Neonatal", "Postneonatal", "Under5"),
+                         labels = c("Neonatal", "Postneonatal", "Under-5")),
+         byvar = case_when(
+           byvar == "Urbain" ~ "Urban",
+           byvar == 1 ~ "Regional capitals",
+           byvar == 2 ~ "Small towns",
+           byvar == 3 ~ "Rural w <40\\% living >5km from CSCOM",
+           byvar == 4 ~ "Rural w >40\\% living >5km from CSCOM",
+           TRUE ~ byvar
+         )) %>%
+  select(byvar, cut_time, agegrp, qx, qx_lower, qx_upper) %>% #  events, pyears, mx,
+  arrange(byvar, cut_time, agegrp) %>%
+  mutate(qx = sprintf("%0.1f",round(qx * 1000, 1)),
+         qx_lower = sprintf("%0.1f",round(qx_lower * 1000, 1)),
+         qx_upper = sprintf("%0.1f",round(qx_upper * 1000, 1)),
+         ci = paste0("(", qx_lower, ", ", qx_upper, ")")) %>% 
+  select(byvar, cut_time, agegrp, qx, ci) %>%
+  pivot_longer(cols = c(qx, ci), names_to = "stat", values_to = "value") %>%
+  unite(temp_col, agegrp, cut_time, sep = "_") %>%
+  pivot_wider(names_from = temp_col, values_from = value) %>%
+  mutate(type = "Strata")
+
+# domain
+reach_dom <- reach %>%
+  filter(type %in% c("Area") & cut_time %in% c("0-4", "5-9", "10-14")) %>%
+  mutate(cut_time = factor(cut_time, levels = c("0-4", "5-9", "10-14")),
+         agegrp = factor(agegrp, levels = c("Neonatal", "Postneonatal", "Under5"),
+                         labels = c("Neonatal", "Postneonatal", "Under-5")),
+         byvar = gsub("Zones de comparaison", "Comparison", byvar),
+         byvar = gsub("Zones du programme", "Treatment", byvar)) %>%
+  select(byvar, cut_time, agegrp, qx, qx_lower, qx_upper) %>% #  events, pyears, mx,
+  arrange(byvar, cut_time, agegrp) %>%
+  mutate(qx = sprintf("%0.1f",round(qx * 1000, 1)),
+         qx_lower = sprintf("%0.1f",round(qx_lower * 1000, 1)),
+         qx_upper = sprintf("%0.1f",round(qx_upper * 1000, 1)),
+         ci = paste0("(", qx_lower, ", ", qx_upper, ")")) %>% 
+  select(byvar, cut_time, agegrp, qx, ci) %>%
+  pivot_longer(cols = c(qx, ci), names_to = "stat", values_to = "value") %>%
+  unite(temp_col, agegrp, cut_time, sep = "_") %>%
+  pivot_wider(names_from = temp_col, values_from = value) %>%
+  mutate(type = "Domain")
+
+reach_comb <- reach_all %>%
+  bind_rows(reach_reg) %>%
+  bind_rows(reach_strat) %>%
+  bind_rows(reach_dom) %>% 
+  select(c(stat,all_of(col_order)))
+reach_comb2 <- reach_comb %>%
+  select(byvar, "Neonatal_0-4", "Neonatal_5-9", "Neonatal_10-14",
+         "Postneonatal_0-4", "Postneonatal_5-9", "Postneonatal_10-14",
+         "Under-5_0-4", "Under-5_5-9", "Under-5_10-14")
+names(reach_comb2) <- c("byvar",rep(c("0-4", "5-9", "10-14"), times = 3))
+reach_comb2 %>%
+  kbl(booktabs = TRUE, row.names = FALSE, linesep = "", format = "latex",
+      format.args = list(big.mark = ",", scientific = FALSE), 
+      label = c("mortality"),
+      caption = "Summary statistics for mortality.") %>%
+  collapse_rows(1) %>%
+  add_header_above(c(" " = 1, "NMR - q(28d)" =3, "PNMR - q(28d, 59m)" = 3, "U5MR - q(60m)" = 3)) %>%
+  pack_rows(index = table(fct_inorder(reach_comb$type))) 
+
+
+# Combined Word table -----------------------------------------------------
+
+# Step 1: Prepare wide table with unique column names
+reach_wide <- reach_comb %>%
+  pivot_longer(cols = -c(stat, type, byvar), names_to = "group_age", values_to = "value") %>%
+  pivot_wider(names_from = stat, values_from = value) %>%
+  pivot_longer(cols = c(qx, ci), names_to = "stat", values_to = "value") %>%
+  mutate(stat = factor(stat, levels = c("qx", "ci"))) %>%
+  arrange(type, byvar, stat) %>%
+  pivot_wider(names_from = group_age, values_from = value)
+
+# Step 2: Keep column names unique
+# No renaming to "0-4", "5-9", etc. — just keep full variable names like "Neonatal_0-4"
+
+# Step 3: Create header mappings
+pretty_labels <- c(
+  "Neonatal_0-4" = "0-4", "Neonatal_5-9" = "5-9", "Neonatal_10-14" = "10-14",
+  "Postneonatal_0-4" = "0-4", "Postneonatal_5-9" = "5-9", "Postneonatal_10-14" = "10-14",
+  "Under-5_0-4" = "0-4", "Under-5_5-9" = "5-9", "Under-5_10-14" = "10-14"
+)
+
+main_header <- c("type", "byvar", 
+                 rep("NMR - q(28d)", 3),
+                 rep("PNMR - q(28d, 59m)", 3),
+                 rep("U5MR - q(60m)", 3))
+
+reach_wide <- reach_wide[,c("type", "byvar", "stat", "Neonatal_0-4", "Neonatal_5-9", "Neonatal_10-14",
+              "Postneonatal_0-4", "Postneonatal_5-9", "Postneonatal_10-14",
+              "Under-5_0-4", "Under-5_5-9", "Under-5_10-14")]
+
+# Step 4: Build flextable
+ft <- flextable(reach_wide) %>%
+  set_header_labels(values = c(
+    type = " ",
+    byvar = "byvar"
+  )) %>%
+  merge_v(j = ~type + byvar) %>%
+  valign(j = ~type + byvar, valign = "top") %>%
+  align(align = "center", part = "all") %>%
+  autofit() %>%
+  theme_booktabs() %>%
+  set_caption("Summary statistics for fertility in the Mali DHS and REACH-Mali by region.")
+
+doc <- read_docx()
+doc <- body_add_flextable(doc, ft)
+print(doc, target = "fertility_table.docx")
+
 # Table country-level mortality estimates ------------------------------------------
 
 # All
