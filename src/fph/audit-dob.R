@@ -9,7 +9,7 @@ rm(list = ls())
 library(tidyr)
 library(dplyr)
 #' Inputs
-dat <- readRDS("./gen/fph/temp/fph-clean.rds")
+dat <- readRDS("./gen/fph/temp/fph-qsecover-qwsec01.rds")
 ################################################################################
 
 # All the variables which should contain information about imputations are missing
@@ -97,7 +97,7 @@ dat_aud2 <- dat %>%
       TRUE ~ "other"
     )
   ) %>%
-  select(qwsec2b_id, q219, q220y, q220m, q220d, q228, dob_type, q216, q223, q223_aug)
+  select(qlregion, qwsec2b_id, q219, q220y, q220m, q220d, q228, dob_type, q216, q223, q223_aug)
 table(dat_aud2$dob_type, useNA = "always")
 write.csv(dat_aud2, paste0("./gen/fph/audit/dat_aud-dob2_", format(Sys.Date(), "%Y%m%d"), ".csv"), row.names = FALSE)
 
