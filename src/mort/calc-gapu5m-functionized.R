@@ -58,7 +58,7 @@ set.seed(777)
 dat$random <- NA
 dat$random[dat$event == 1] <- runif(nrow(dat[dat$event == 1,]), min = 0,  max = 1)
 
-# Turn discreate age at death values into continuous values to reduce effects of digit preference
+# Turn discrete age at death values into continuous values to reduce effects of digit preference
 # adds less than 1 day to ages at death reported in days, adds somewhere within 1 month to month, places year death within the same year
 # Age at death in person-years with imputation for random days
 dat$expo[dat$event == 1 & dat$aad_unit == 1] <- (as.numeric(dat$aad_value[dat$event == 1 & dat$aad_unit == 1]) + dat$random[dat$event == 1 & dat$aad_unit == 1])/365.25   

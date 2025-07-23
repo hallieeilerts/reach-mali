@@ -13,6 +13,7 @@ head(dat)
 # Appears to be information about interview plus CARACTÉRISTIQUES SOCIODÉMOGRAPHIQUES DE L'ENQUÊTÉE  from mortalite-femme
 dat <- read.csv("./data/reach_qwsec01_vue.csv")
 head(dat)
+nrow(dat) # 26452
 
 # Appears to be information about interview plus SBH from mortalite-femme
 dat <- read.csv("./data/reach_qwsec2a_vue.csv")

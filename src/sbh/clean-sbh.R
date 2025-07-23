@@ -12,6 +12,7 @@ dat <- readRDS("./gen/sbh/temp/sbh-qsecover-qwsec01.rds")
 ################################################################################
 
 # Fill in missing q208 (nombre total d'enfants nés) with kids reported as living with them, living elsewhere, and kids who died
+nrow(subset(dat, is.na(q208))) # 5
 dat_miss <- subset(dat, is.na(q208))
 dat_other <- subset(dat, !is.na(q208))
 nrow(dat) == nrow(dat_miss) + nrow(dat_other)

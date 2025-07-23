@@ -41,6 +41,12 @@ l_br <- map(l_br, ~ .x %>%
               ungroup())
 # the variable label says v208 is births in the last five years rather than total children ever born
 
+# In the DHS, we don't have SBH data for when the person had zero children
+nrow(subset(l_br$ML2001DHS, v202 == 0))
+nrow(subset(l_br$ML2001DHS, v202 == 0 & v203 == 0))
+nrow(subset(l_br$ML2001DHS, v202 == 0 & v203 == 0 & v204 == 0 & v205 == 0))
+nrow(subset(l_br$ML2001DHS, v202 == 0 & v203 == 0 & v204 == 0 & v205 == 0 & v206 == 0 & v207 == 0)) # 0
+
 # Save output(s) ----------------------------------------------------------
 
 saveRDS(l_br, "./gen/dhs/temp/br-ml-prep.rds")

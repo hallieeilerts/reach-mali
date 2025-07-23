@@ -15,6 +15,9 @@ demog <- readRDS("./gen/mort/audit/demog-rates.rds")
 dhs <- readRDS("./gen/mort/audit/dhs-rates.rds")
 ################################################################################
 
+
+# data prep ---------------------------------------------------------------
+
 df_reach <- reach %>%
   filter(cut_time %in% c("0-4", "5-9", "10-14")) %>%
   select(type, cut_time, agegrp, byvar, qx, qx_lower, qx_upper) %>%
@@ -36,7 +39,9 @@ df_dhs <- dhs %>%
   mutate(source = "dhs") %>%
   filter(agegrp %in% c("Neonatal", "Under5"))
 
-# compare without ci
+
+# compare without ci ------------------------------------------------------
+
 dat <- rbind(df_reach %>% select(-c(ci_l, ci_u)), 
              df_demog %>% select(-c(ci_l, ci_u)), 
              df_dhs)
@@ -104,6 +109,16 @@ dat %>%
 
 dat %>%
   filter(type == "Residence") %>%
+  mutate(tips = factor(tips, levels = c("0-4", "5-9", "10-14")),
+         agegrp = factor(agegrp, levels = c("Neonatal", "Postneonatal", "Under5"))) %>%
+  ggplot(aes(x=agegrp, y = qx, fill = source)) +
+  geom_bar(position = "dodge", stat = "identity") +
+  geom_errorbar(aes(ymin= ci_l, ymax = ci_u), position = "dodge") +
+  facet_grid(byvar ~ tips) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+dat %>%
+  filter(type == "Region") %>%
   mutate(tips = factor(tips, levels = c("0-4", "5-9", "10-14")),
          agegrp = factor(agegrp, levels = c("Neonatal", "Postneonatal", "Under5"))) %>%
   ggplot(aes(x=agegrp, y = qx, fill = source)) +

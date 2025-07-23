@@ -21,9 +21,10 @@ l_br <- readRDS("./gen/dhs/temp/br-ml-prep.rds")
 l_br <- lapply(l_br, haven::as_factor)
 
 l_br <- lapply(l_br, function(x){x$death <- x$b5 == "no"; x})
-l_br <- lapply(l_br, function(x){x$dod <- x$b3 + x$b7 + 0.5; x})
 l_br <- lapply(l_br, function(x){x$dod <- as.numeric(as.character(x$b3)) + as.numeric(as.character(x$b7)) + 0.5; x})
 
+# putting strata as NULL because ML1987DHS doesn't have region variable
+# also, not using uncertainty calculations at the moment, so not a problem to not include strata survey design
 nat1 <- plyr::ldply(l_br, calc_nqx, by=~1, agegr=c(0, (28*12/365.25) )/12, strata=NULL, cluster=~v001, .id = "SurveyId") # 0-28d
 nat2 <- plyr::ldply(l_br, calc_nqx, by=~1, agegr=c((28*12/365.25), 3, 5, 12)/12, strata=NULL, cluster=~v001, .id = "SurveyId")  # 28d-12m
 nat3 <- plyr::ldply(l_br, calc_nqx, by=~1, agegr=c(0, (28*12/365.25), 3, 5, 12)/12, strata=NULL, cluster=~v001, .id = "SurveyId") # 0-12m
