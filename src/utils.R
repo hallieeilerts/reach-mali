@@ -396,7 +396,7 @@ fn_calcmort <- function(dat, ages, period = NULL, tips = NULL){
   agecutlab <- as.character(agecut[1:(length(agecut)-1)]*365.25)
   dat$cut_age <- tcut(dat$startage, agecut, labels = agecutlab)
   
-  # function that computes deaths and person-years for the defined periods and age group (use weight variable)
+  # function that computes deaths and person-years for the defined periods and age group
   # pyears(surv ~ year + age, weights = tmp$v005/1000000, scale = 1, data.frame = TRUE)
   calcpyears <- pyears(Surv(time = expo, event = event, type = "right") ~ cut_time + cut_age, weights = wt, scale = 1, dat, data.frame = TRUE)
   PY <- calcpyears[[2]]
@@ -467,10 +467,10 @@ fn_calcmort <- function(dat, ages, period = NULL, tips = NULL){
   
   # Apply plot rows, grouped by year
   df_plot <- df_rates %>%
-    group_split(cut_time) %>%       # split into list of data frames by year
-    map(fn_addrows) %>%         # apply function to each group
-    bind_rows() %>%             # recombine into one data frame
-    arrange(cut_time, age_y)        # optional: sort the result
+    group_split(cut_time) %>% # split into list of data frames by year
+    map(fn_addrows) %>%       # apply function to each group
+    bind_rows() %>% 
+    arrange(cut_time, age_y)
   
   l_res <- list(df_rates, df_plot)
   names(l_res) <- c("rates", "plot")
