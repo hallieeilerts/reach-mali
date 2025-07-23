@@ -67,6 +67,8 @@ df_dhsreg_gapu5m$byvar <- tolower(df_dhsreg_gapu5m$byvar)
 df_dhsreg_gapu5m$byvar <- stri_trans_general(str = df_dhsreg_gapu5m$byvar, id = "Latin-ASCII")
 
 
+# Ab plots ----------------------------------------------------------------
+
 df_reach %>%
   filter(type == "Region") %>% 
   bind_rows(df_dhsreg) %>%
@@ -107,6 +109,8 @@ df_reach %>%
   facet_wrap(~byvar)
 
 
+# Age pattern -------------------------------------------------------------
+
 p <- df_reach %>%
   filter(type == "Region") %>% 
   bind_rows(df_dhsreg) %>%
@@ -118,13 +122,15 @@ p <- df_reach %>%
     values_from = qx
   ) %>%
   mutate(ratio = q1to5y/q0to1y/q0to5y) %>%
+  mutate(byvar = stri_trans_totitle(byvar)) %>%
   ggplot() +
   geom_bar(aes(x=source, y= ratio, fill = source), stat = "identity") +
   labs(x = "", y = "[q(1y,5y)/q(1y)]/q(5y)", title= "Age pattern against overall level of mortality",
        subtitle = "Ratio of q(1y,5y):q(1y), divided by q(5y)") +
   facet_grid(byvar~tips) +
   theme_bw() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.title = element_blank())
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.title = element_blank(),
+        legend.position = "none")
 ggsave("./gen/mort/figures/dhs-reg-agepat1.png", p, dpi = 300, width = 6, height = 6)
 
 p <- df_reach %>%
@@ -138,13 +144,17 @@ p <- df_reach %>%
     values_from = qx
   ) %>%
   mutate(ratio = q1to59m/q0to28d/q0to5y) %>%
+  mutate(byvar = stri_trans_totitle(byvar)) %>%
   ggplot() +
   geom_bar(aes(x=source, y= ratio, fill = source), stat = "identity") +
-  labs(x = "", y = "[q(1m,59m)/q(1m)]/q(5y)", title= "Age pattern against overall level of mortality",
-       subtitle = "Ratio of q(1m,59m):q(1m), divided by q(5y)") +
+  #labs(x = "", y = "[q(1m,59m)/q(1m)]/q(5y)", title= "Age pattern against overall level of mortality",
+  #    subtitle = "Ratio of q(1m,59m):q(1m), divided by q(5y)") +
+  labs(x = "", y = "[q(28d,59m)/q(28d)]/q(60m)", title= "Age pattern against overall level of mortality",
+       subtitle = "Ratio of postneonatal:neonatal mortality, divided by under-5 mortality") +
   facet_grid(byvar~tips) +
   theme_bw() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.title = element_blank())
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.title = element_blank(),
+        legend.position = "none")
 ggsave("./gen/mort/figures/dhs-reg-agepat2.png", p, dpi = 300, width = 6, height = 6)
 
 p <- df_reach %>%
@@ -167,6 +177,9 @@ p <- df_reach %>%
   theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.title = element_blank())
 ggsave("./gen/mort/figures/dhs-reg-agepat3.png", p, dpi = 300, width = 6, height = 6)
 
+
+# Proportion --------------------------------------------------------------
+
 # Proportion of under-5 deaths that are neonatal
 p <- df_gap %>%
   filter(type == "Region") %>%
@@ -184,12 +197,14 @@ p <- df_gap %>%
   group_by(source, type, byvar, tips) %>%
   mutate(total = Neonatal + Post) %>%
   mutate(frac = Neonatal/total) %>%
+  mutate(byvar = stri_trans_totitle(byvar)) %>%
   ggplot() +
   geom_bar(aes(x=source, y=frac, fill = source), stat = "identity") +
   labs(x = "", y = "Proportion", title= "Proportion of under-5 deaths that are neonatal") +
   facet_grid(byvar~tips) +
   theme_bw() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.title = element_blank())
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.title = element_blank(),
+        legend.position = "none")
 ggsave("./gen/mort/figures/dhs-reg-propneo.png", p, dpi = 300, width = 6, height = 6)
 
 
@@ -217,6 +232,9 @@ p <- df_gap %>%
   theme_bw() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.title = element_blank())
 ggsave("./gen/mort/figures/dhs-reg-propinf.png", p, dpi = 300, width = 6, height = 6)
+
+
+# Qx ----------------------------------------------------------------------
 
 
 # Cumulative Qx by region
@@ -249,6 +267,7 @@ df_gap %>%
 df_reach %>%
   filter(type == "Region") %>% 
   bind_rows(df_dhsreg) %>%
+  filter(agegrp == "q0to5y") %>%
   mutate(tips = factor(tips, levels = c("0-4", "5-9", "10-14"))) %>%
   filter(!(byvar %in% c("bamako", "gao", "kidal", "timbuktu", "tombouctou", "toumbouctou"))) %>%
   ggplot() +
@@ -282,3 +301,284 @@ subset(dhsnat_gapu5m, cut_time == "0-4" & age_y_up == 5 & source == "ML2018DHS")
 # 2023-24 DHS: neonatal 29
 # 2023-24 DHS: 5q0 87
 
+# Trends ------------------------------------------------------------------
+
+df_dhsreg %>%
+  bind_rows(df_reach %>% filter(type == "Region")) %>%
+  filter(agegrp == "q0to5y") %>%
+  mutate(tips = factor(tips, levels = c("0-4", "5-9", "10-14"))) %>%
+  filter(!(byvar %in% c("bamako", "gao", "kidal", "timbuktu", "tombouctou", "toumbouctou"))) %>%
+  mutate(byvar = tools::toTitleCase(byvar)) %>%
+  mutate(SurveyYear = as.numeric(substr(source, 3, 6)),
+         SurveyYear = ifelse(source == "REACH-Mali", 2025, SurveyYear),
+         year_m = SurveyYear - 2.5,
+         year_m = case_when(
+           tips == "5-9" ~ SurveyYear - 7.5,
+           tips == "10-14" ~ SurveyYear - 12.5,
+           TRUE ~ year_m
+         ),
+         year_l = year_m - 2.5,
+         year_u = year_m + 2.5) %>%
+  ggplot() + 
+    geom_point(aes(x = year_m, y = qx*1000, color = byvar, shape = tips)) +
+    geom_line(aes(x = year_m, y = qx*1000, color = byvar, group = interaction(source, byvar))) +
+  annotate(geom="text", x=2015, y = 50, label="REACH-Mali", hjust = 0) +
+  labs(x = "Age (years)", y = "Q(x)", title = "Under-5 mortality by region in REACH-Mali and DHS") +
+  scale_shape_discrete(name = "Time prior to survey") +
+  scale_color_discrete(name = "Region") +
+  theme_bw() +
+  theme(text = element_text(size = 10), title = element_text(size = 8))
+
+
+
+label_data <- df_dhsreg %>%
+  bind_rows(df_reach %>% filter(type == "Region")) %>%
+  filter(agegrp == "q0to5y") %>%
+  filter(!(byvar %in% c("bamako", "gao", "kidal", "timbuktu", "tombouctou", "toumbouctou"))) %>%
+  mutate(
+    byvar = tools::toTitleCase(byvar),
+    tips = factor(tips, levels = c("0-4", "5-9", "10-14")),
+    SurveyYear = as.numeric(substr(source, 3, 6)),
+    SurveyYear = ifelse(source == "REACH-Mali", 2025, SurveyYear),
+    year_m = case_when(
+      tips == "0-4" ~ SurveyYear - 2.5,
+      tips == "5-9" ~ SurveyYear - 7.5,
+      tips == "10-14" ~ SurveyYear - 12.5
+    )
+  ) %>%
+  group_by(source, byvar) %>%
+  filter(year_m == max(year_m)) %>%   # Get latest year per line
+  ungroup() %>%
+  mutate(label = source)
+df_dhsreg %>%
+  bind_rows(df_reach %>% filter(type == "Region")) %>%
+  filter(agegrp == "q0to5y") %>%
+  mutate(tips = factor(tips, levels = c("0-4", "5-9", "10-14"))) %>%
+  filter(!(byvar %in% c("bamako", "gao", "kidal", "timbuktu", "tombouctou", "toumbouctou"))) %>%
+  mutate(byvar = tools::toTitleCase(byvar)) %>%
+  mutate(SurveyYear = as.numeric(substr(source, 3, 6)),
+         SurveyYear = ifelse(source == "REACH-Mali", 2025, SurveyYear),
+         year_m = SurveyYear - 2.5,
+         year_m = case_when(
+           tips == "5-9" ~ SurveyYear - 7.5,
+           tips == "10-14" ~ SurveyYear - 12.5,
+           TRUE ~ year_m
+         ),
+         year_l = year_m - 2.5,
+         year_u = year_m + 2.5) %>%
+  ggplot() + 
+  geom_point(aes(x = year_m, y = qx*1000, color = byvar, shape = tips)) +
+  geom_line(aes(x = year_m, y = qx*1000, color = byvar, group = interaction(source, byvar))) +
+  geom_label(data = label_data,
+             aes(x = year_m + 0.5, y = qx * 1000, label = label, fill = byvar),
+             color = "black", alpha = 0.3, hjust = 0, size = 2.5, show.legend = FALSE) +
+  labs(x = "Age (years)", y = "Q(x)", title = "Under-5 mortality by region in REACH-Mali and DHS") +
+  scale_shape_discrete(name = "Time prior to survey") +
+  scale_color_discrete(name = "Region") +
+  theme_bw() +
+  theme(text = element_text(size = 10), title = element_text(size = 8))
+
+
+# Region trends with label ------------------------------------------------
+
+ml2024 <- data.frame(source = rep("ML2024DHS"),
+                     agegrp = rep("q0to5y"),
+                     qx = c(0.087, 0.111, 0.132),
+                     tips = c("0-4", "5-9", "10-14"),
+                     byvar = "National")
+
+# Labels in the mix
+# label_data <- df_dhsreg %>%
+#   bind_rows(ml2024) %>%
+#   bind_rows(df_reach %>% filter(type == "Region")) %>%
+#   filter(agegrp == "q0to5y") %>%
+#   filter(!(byvar %in% c("bamako", "gao", "kidal", "timbuktu", "tombouctou", "toumbouctou"))) %>%
+#   mutate(
+#     byvar = tools::toTitleCase(byvar),
+#     tips = factor(tips, levels = c("0-4", "5-9", "10-14")),
+#     SurveyYear = as.numeric(substr(source, 3, 6)),
+#     SurveyYear = ifelse(source == "REACH-Mali", 2025, SurveyYear),
+#     year_m = case_when(
+#       tips == "0-4" ~ SurveyYear - 2.5,
+#       tips == "5-9" ~ SurveyYear - 7.5,
+#       tips == "10-14" ~ SurveyYear - 12.5
+#     ),
+#     qx_scaled = qx * 1000
+#   ) %>%
+#   group_by(source) %>%
+#   filter(tips == "0-4") %>%
+#   summarise(
+#     x = max(year_m+2.5, na.rm = TRUE),
+#     y = mean(qx_scaled, na.rm = TRUE),
+#     label = unique(source)
+#   )
+# Labels on top
+label_data <- df_dhsreg %>%
+  bind_rows(ml2024) %>%
+  bind_rows(df_reach %>% filter(type == "Region")) %>%
+  filter(agegrp == "q0to5y") %>%
+  filter(!(byvar %in% c("bamako", "gao", "kidal", "timbuktu", "tombouctou", "toumbouctou"))) %>%
+  mutate(
+    byvar = tools::toTitleCase(byvar),
+    tips = factor(tips, levels = c("0-4", "5-9", "10-14")),
+    SurveyYear = as.numeric(substr(source, 3, 6)),
+    SurveyYear = ifelse(source == "REACH-Mali", 2025, SurveyYear),
+    year_m = case_when(
+      tips == "0-4" ~ SurveyYear - 2.5,
+      tips == "5-9" ~ SurveyYear - 7.5,
+      tips == "10-14" ~ SurveyYear - 12.5
+    ),
+    qx_scaled = qx * 1000
+  ) %>%
+  group_by(source) %>%
+  filter(tips == "0-4") %>%
+  summarise(
+    x = max(year_m + 2.5, na.rm = TRUE),
+    label = unique(source)
+  ) %>%
+  ungroup() %>%
+  arrange(x) %>%
+  mutate(y = 375 - 25 * (row_number() - 1))  # Vertical staggering
+survey_years <- df_dhsreg %>%
+  bind_rows(ml2024) %>%
+  bind_rows(df_reach %>% filter(type == "Region")) %>%
+  filter(!(byvar %in% c("bamako", "gao", "kidal", "timbuktu", "tombouctou", "toumbouctou"))) %>%
+  mutate(SurveyYear = as.numeric(substr(source, 3, 6)),
+         SurveyYear = ifelse(source == "REACH-Mali", 2025, SurveyYear)) %>%
+  pull(SurveyYear) %>%
+  unique() %>%
+  sort()
+
+p <- df_dhsreg %>%
+  bind_rows(ml2024) %>%
+  bind_rows(df_reach %>% filter(type == "Region")) %>%
+  filter(agegrp == "q0to5y") %>%
+  mutate(tips = factor(tips, levels = c("0-4", "5-9", "10-14"))) %>%
+  filter(!(byvar %in% c("bamako", "gao", "kidal", "timbuktu", "tombouctou", "toumbouctou"))) %>%
+  mutate(byvar = tools::toTitleCase(byvar)) %>%
+  mutate(byvar = factor(byvar, levels = c("Kayes", "Koulikoro","Mopti","Segou","Sikasso", "National"))) %>%
+  mutate(SurveyYear = as.numeric(substr(source, 3, 6)),
+         SurveyYear = ifelse(source == "REACH-Mali", 2025, SurveyYear),
+         year_m = SurveyYear - 2.5,
+         year_m = case_when(
+           tips == "5-9" ~ SurveyYear - 7.5,
+           tips == "10-14" ~ SurveyYear - 12.5,
+           TRUE ~ year_m
+         ),
+         year_l = year_m - 2.5,
+         year_u = year_m + 2.5) %>% 
+  ggplot() + 
+  geom_vline(xintercept = survey_years, linetype = "dashed", color = "gray50", alpha = 0.5) +
+  geom_point(aes(x = year_u, y = qx*1000, color = byvar, shape = tips)) +
+  geom_line(aes(x = year_u, y = qx*1000, color = byvar, group = interaction(source, byvar))) +
+  geom_label(data = label_data,
+             aes(x = x, y = y, label = label),
+             alpha = 0.4, fill = "white", color = "black", size = 3, label.size = NA, hjust = 1) +
+  labs(x = "", y = "Q(x)", title = "Under-5 mortality by region in DHS and REACH-Mali") +
+  scale_shape_discrete(name = "Time prior to survey") +
+  scale_color_manual(name = "Region", values = c("#F8766D", "#A3A500", "#00BF7D", "#00B0F6", "#E76BF3", "black")) +
+  theme_bw() +
+  theme(text = element_text(size = 10), title = element_text(size = 8),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+ggsave("./gen/mort/figures/trends-reg.png", p, dpi = 300, width = 6, height = 4)
+
+
+# National trends with label ----------------------------------------------
+
+ml2024 <- data.frame(source = "ML2024DHS",
+                     agegrp = c(rep("q0to5y",3), 
+                                rep("q0to28d",3),
+                                rep("q0to1y",3),
+                                rep("q28dto1y",3)
+                                ),
+                     qx = c(0.087, 0.111, 0.132,
+                            0.029, 0.038, 0.037,
+                            0.052, 0.061, 0.065,
+                            0.022, 0.023, 0.028),
+                     tips = rep(c("0-4", "5-9", "10-14"), 4),
+                     byvar = "National")
+ml1 <- subset(ml2024, agegrp == "q0to28d")
+ml2 <- subset(ml2024, agegrp == "q0to5y")
+ml_m <- merge(ml1, ml2, by = c("tips", "source", "byvar"))
+ml_m$qx <- ml_m$qx.y - ml_m$qx.x
+ml_m$agegrp <- "q1to59m"
+ml_m <- ml_m[,c("tips", "source", "byvar", "agegrp", "qx")]
+ml2024 <- rbind(ml2024, ml_m)
+
+# Labels on top
+label_data <- df_dhsnat %>%
+  bind_rows(ml2024) %>%
+  bind_rows(df_reach %>% filter(type == "All")) %>%
+  filter(agegrp == "q0to5y") %>%
+  mutate(tips = factor(tips, levels = c("0-4", "5-9", "10-14"))) %>%
+  mutate(SurveyYear = as.numeric(substr(source, 3, 6)),
+         SurveyYear = ifelse(source == "REACH-Mali", 2025, SurveyYear),
+         year_m = SurveyYear - 2.5,
+         year_m = case_when(
+           tips == "5-9" ~ SurveyYear - 7.5,
+           tips == "10-14" ~ SurveyYear - 12.5,
+           TRUE ~ year_m),
+         qx_scaled = qx * 1000) %>%
+  group_by(source) %>%
+  filter(tips == "0-4") %>%
+  summarise(
+    x = max(year_m + 2.5, na.rm = TRUE),
+    label = unique(source)
+  ) %>%
+  ungroup() %>%
+  arrange(x) %>%
+  mutate(y = 375 - 25 * (row_number() - 1))  # Vertical staggering
+survey_years <- df_dhsnat %>%
+  bind_rows(ml2024) %>%
+  bind_rows(df_reach %>% filter(type == "All")) %>%
+  mutate(SurveyYear = as.numeric(substr(source, 3, 6)),
+         SurveyYear = ifelse(source == "REACH-Mali", 2025, SurveyYear)) %>%
+  pull(SurveyYear) %>%
+  unique() %>%
+  sort()
+
+p <- df_dhsnat %>%
+  bind_rows(ml2024) %>%
+  bind_rows(df_reach %>% filter(type == "All")) %>%
+  filter(agegrp == "q0to5y") %>%
+  mutate(tips = factor(tips, levels = c("0-4", "5-9", "10-14"))) %>%
+  mutate(SurveyYear = as.numeric(substr(source, 3, 6)),
+         SurveyYear = ifelse(source == "REACH-Mali", 2025, SurveyYear),
+         year_m = SurveyYear - 2.5,
+         year_m = case_when(
+           tips == "5-9" ~ SurveyYear - 7.5,
+           tips == "10-14" ~ SurveyYear - 12.5,
+           TRUE ~ year_m
+         ),
+         year_l = year_m - 2.5,
+         year_u = year_m + 2.5) %>% 
+  ggplot() + 
+  geom_vline(xintercept = survey_years, linetype = "dashed", color = "gray50", alpha = 0.5) +
+  geom_point(aes(x = year_u, y = qx*1000, color = source, shape = tips)) +
+  geom_line(aes(x = year_u, y = qx*1000, color = source)) +
+  geom_label(data = label_data,
+             aes(x = x, y = y, label = label),
+             alpha = 0.4, fill = "white", color = "black", size = 3, label.size = NA, hjust = 1) +
+  labs(x = "", y = "Q(x)", title = "Under-5 mortality in DHS and REACH-Mali") +
+  scale_shape_discrete(name = "Time prior to survey") +
+  scale_color_discrete(name = "Source") +
+  theme_bw() +
+  theme(text = element_text(size = 10), title = element_text(size = 8),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+ggsave("./gen/mort/figures/trends-nat.png", p, dpi = 300, width = 6, height = 4)
+
+
+# Table -------------------------------------------------------------------
+
+
+df_dhsnat %>%
+  bind_rows(ml2024) %>%
+  bind_rows(df_reach %>% filter(type == "All")) %>%
+  filter(agegrp == "q0to5y" & tips == "0-4") 
+
+df_dhsnat %>%
+  bind_rows(ml2024) %>%
+  bind_rows(df_reach %>% filter(type == "All")) %>%
+  filter(agegrp == "q0to28d" & tips == "0-4") 
