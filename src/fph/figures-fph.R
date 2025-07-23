@@ -236,6 +236,55 @@ p <- aud2 %>%
 ggsave("./gen/fph/figures/dob-reporting-tally.png", p, dpi = 300, width = 6, height = 2.5)
 
 
+# Missing DOB by region ---------------------------------------------------
+
+aud2 %>%
+  # approximation of tips
+  mutate(tips = cut(q220y, breaks = c(-Inf, 2025-15, 2025-10, 2025-5, 2026), 
+                    labels = c(">15", "10-14", "5-9", "0-4"))) %>%
+  filter(!is.na(tips)) %>%
+  # drop non-live births 
+  filter(q223 == 1) %>%
+  mutate(tips = factor(tips, levels = c("0-4", "5-9", "10-14", ">15"))) %>%
+  group_by(qlregion, tips, dob_type) %>%
+  summarise(n=n()) %>%
+  group_by(qlregion, tips) %>%
+  mutate(total = sum(n),
+         per = n/total*100) %>% 
+  mutate(dob_type = factor(dob_type, levels = c("complete", "missing_d", "missing_m", "missing_md"),
+                           labels = c("Complete", "Missing day",  "Missing month", "Missing month & day"))) %>%
+  ggplot() +
+  geom_bar(aes(x=dob_type, y = per, fill = dob_type), stat = "identity") +
+  labs(x = "", y = "Percent", fill="DOB reporting", title = "DOB reporting completeness by years prior to survey") +
+  facet_grid(qlregion~tips) +
+  theme_bw() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(),
+        text = element_text(size = 10), title = element_text(size = 8)) +
+  scale_fill_viridis_d(option = "C")
+
+aud2 %>%
+  # approximation of tips
+  mutate(tips = cut(q220y, breaks = c(-Inf, 2025-15, 2025-10, 2025-5, 2026), 
+                    labels = c(">15", "10-14", "5-9", "0-4"))) %>%
+  filter(!is.na(tips) & tips == "0-4") %>%
+  # drop non-live births 
+  filter(q223 == 1) %>%
+  group_by(qlregion, dob_type) %>%
+  summarise(n=n()) %>%
+  group_by(qlregion) %>%
+  mutate(total = sum(n),
+         per = n/total*100) %>% 
+  mutate(dob_type = factor(dob_type, levels = c("complete", "missing_d", "missing_m", "missing_md"),
+                           labels = c("Complete", "Missing day",  "Missing month", "Missing month & day"))) %>%
+  ggplot() +
+  geom_bar(aes(x=qlregion, y = per, fill = qlregion), stat = "identity") +
+  labs(x = "", y = "Percent", fill="DOB reporting", title = "DOB reporting completeness by years prior to survey") +
+  facet_wrap(~dob_type, nrow = 1) +
+  theme_bw() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(),
+        text = element_text(size = 10), title = element_text(size = 8)) 
+
+
 
 # Distribution of day of birth --------------------------------------------
 
@@ -248,7 +297,7 @@ p <- dat %>%
   summarise(n = n()) %>%
   ggplot() +
   geom_bar(aes(x = dobd, y = n), stat = "identity", fill = "#0D0887FF") +
-  labs(y = "n", x = "Days", title = "Day of birth heaping") +
+  labs(y = "n", x = "Days", title = "Day of birth") +
   facet_wrap(~tips, nrow=1) +
   #scale_fill_manual(values = c("#DE4968", "#0D0887FF")) +
   scale_x_continuous(breaks = c(1, 15, 30)) +
@@ -256,6 +305,26 @@ p <- dat %>%
   theme_bw() +
   theme(text = element_text(size = 10), title = element_text(size = 8))
 ggsave("./gen/fph/figures/heaping-dobd.png", p, dpi = 300, width = 6, height = 3)
+
+
+# Distribution of day of birth - region -----------------------------------
+
+dat %>%  
+  filter(tips != ">15") %>%
+  mutate(tips = factor(tips, levels =  c("0-4", "5-9", "10-14"))) %>%
+  mutate(dobd = day(dob)) %>%
+  mutate(barfill = ifelse(dobd %in% c(1, 15,31), "a", "b")) %>%
+  group_by(qlregion, tips, dobd) %>% # barfill, 
+  summarise(n = n()) %>%
+  ggplot() +
+  geom_bar(aes(x = dobd, y = n, fill = qlregion), stat = "identity") +
+  labs(y = "n", x = "Days", title = "Day of birth heaping") +
+  facet_grid(qlregion~tips) +
+  scale_x_continuous(breaks = c(1, 15, 30)) +
+  guides(fill="none") +
+  theme_bw() +
+  theme(text = element_text(size = 10), title = element_text(size = 8))
+# less heaping on day 1 in Mopti
 
 # Distribution of day of birth by child age -------------------------------
 
@@ -330,7 +399,7 @@ p <- dat %>%
   summarise(n = n()) %>%
   ggplot() +
   geom_bar(aes(x = dobm, y = n), stat = "identity", fill = "#0D0887FF") +
-  labs(y = "n", x = "Months", title = "Month of birth heaping") +
+  labs(y = "n", x = "Months", title = "Month of birth") +
   facet_wrap(~tips, nrow=1) +
   #scale_fill_manual(values = c("#DE4968", "#0D0887FF")) +
   scale_x_continuous(breaks = seq(1, 12, 2)) +
@@ -466,7 +535,7 @@ p1 <- dat %>%
   ggplot() +
   geom_bar(aes(x = aadd, y = n), stat = "identity", fill = "#0D0887FF") + #  fill = barfill
   #geom_text(data = reldif7d, aes(x = 11, y = 235, label = sprintf("%0.1f",round(heap, 1)))) +
-  labs(y = "n", x = "Days", title = "Age of death heaping - 7 days") +
+  labs(y = "n", x = "Days", title = "Age of death - days") +
   facet_wrap(~tips, nrow=1) +
   #scale_fill_manual(values = c("#DE4968",  "#0D0887FF")) +
   scale_x_continuous(breaks = c(0, 7, 14)) +
@@ -475,6 +544,25 @@ p1 <- dat %>%
   theme(text = element_text(size = 10), title = element_text(size = 8))
 ggsave("./gen/fph/figures/heaping-aod-7d.png", p1, dpi = 300, width = 6, height = 3)
 
+# Distribution day of death - 7d region ------------------------------------------
+
+dat %>%  
+  filter(event == 1 & tips == "0-4") %>%
+  mutate(tips = factor(tips, levels =  c("0-4", "5-9", "10-14"))) %>%
+  mutate(barfill = ifelse(aadd == 7, "a", "b")) %>%
+  filter(aadd >= 0 & aadd <= 14) %>% 
+  group_by(qlregion, barfill, tips, aadd) %>%
+  summarise(n = n()) %>%
+  ggplot() +
+  geom_bar(aes(x = aadd, y = n, fill = qlregion), stat = "identity") + #  fill = barfill
+  #geom_text(data = reldif7d, aes(x = 11, y = 235, label = sprintf("%0.1f",round(heap, 1)))) +
+  labs(y = "n", x = "Days", title = "Age of death - days") +
+  #facet_grid(qlregion~tips) +
+  facet_wrap(~qlregion, nrow=1) +
+  scale_x_continuous(breaks = c(0, 7, 14)) +
+  guides(fill="none") +
+  theme_bw() +
+  theme(text = element_text(size = 10), title = element_text(size = 8))
 
 # Distribution month of death - 12m ---------------------------------------
 
@@ -490,7 +578,7 @@ p2 <- dat %>%
   ggplot() +
   geom_bar(aes(x = aadm, y = n), stat = "identity",  fill = "#0D0887FF") + # , fill = barfill
   #geom_text(data = reldif12m, aes(x = 16, y = 215, label = sprintf("%0.1f",round(heap, 1)))) +
-  labs(y = "n", x = "Months", title = "Age of death heaping - 12 months") +
+  labs(y = "n", x = "Months", title = "Age of death - months") +
   facet_wrap(~tips, nrow=1) +
   #scale_fill_manual(values = c("#DE4968",  "#0D0887FF")) +
   scale_x_continuous(breaks = c(6, 12, 18)) +
@@ -499,6 +587,24 @@ p2 <- dat %>%
   theme(text = element_text(size = 10), title = element_text(size = 8))
 ggsave("./gen/fph/figures/heaping-aod-12m.png", p2, dpi = 300, width = 6, height = 3)
 
+# Distribution day of death - 12m region ------------------------------------------
+
+dat %>%  
+  filter(event == 1 & tips == "0-4") %>%
+  mutate(tips = factor(tips, levels =  c("0-4", "5-9", "10-14"))) %>%
+  filter(aadm >= 6 & aadm <= 18) %>% 
+  mutate(barfill = ifelse(aadm == 12, "a", "b")) %>%
+  group_by(qlregion, barfill, tips, aadm) %>%
+  summarise(n = n()) %>%
+  ggplot() +
+  geom_bar(aes(x = aadm, y = n, fill = qlregion), stat = "identity") + #  fill = barfill
+  labs(y = "n", x = "Days", title = "Age of death - months") +
+  #facet_grid(qlregion~tips) +
+  facet_wrap(~qlregion, nrow=1) +
+  scale_x_continuous(breaks = c(0, 7, 14)) +
+  guides(fill="none") +
+  theme_bw() +
+  theme(text = element_text(size = 10), title = element_text(size = 8))
 
 # Table SRB ---------------------------------------------------------------
 
@@ -683,6 +789,25 @@ p <- dat %>%
   theme_bw() +
   theme(text = element_text(size = 10), title = element_text(size = 8))
 ggsave("./gen/fph/figures/deaths-yod.png", p, dpi = 300, width = 3, height = 2)
+
+
+# Deaths by year of death by region ---------------------------------------
+
+p <- dat %>%
+  filter(!is.na(dod_dec)) %>%
+  mutate(yod = floor(dod_dec),
+         yoint = floor(v008_dec),
+         tips_yod = -(yoint - yod)) %>%
+  group_by(qlregion, tips_yod) %>%
+  summarise(n = n()) %>%
+  ggplot() +
+  geom_bar(aes(x = tips_yod, y = n, fill = qlregion), stat = "identity") +
+  labs(y = "n", x = "Years prior to survey", title = "Deaths by region") +
+  theme_bw() +
+  theme(text = element_text(size = 10), title = element_text(size = 8),
+        legend.title = element_blank(), legend.position = "none") +
+  facet_wrap(~qlregion, nrow = 1)
+ggsave("./gen/fph/figures/deaths-yod-reg.png", p, dpi = 300, width = 6, height = 2.5)
 
 
 # Combined plots for births and deaths by year ----------------------------
