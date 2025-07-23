@@ -171,6 +171,49 @@ write.csv(reach_concessions_str_rec, paste0(mypath, "reach_concessions_str_rec.c
 write.csv(reach_concessions_str_gps, paste0(mypath, "reach_concessions_str_gps.csv"),row.names=F)
 
 
+# menages -----------------------------------------------------------------
+
+# Establish connection
+db <- dbConnect(
+  RMySQL::MySQL(),
+  dbname = "reach_menages",
+  host = "db.reach.instat.ml",  # Usually "localhost" or an IP
+  port = 3307,  # Change if needed
+  user = username,
+  password = pword
+)
+
+knitr::opts_chunk$set(connection = db, max.print = 30)
+reach_tables_list <- dbGetQuery(db, 
+                                "show tables")
+
+# Get the list of table names from the database
+reach_tables_list <- dbGetQuery(db, "SHOW TABLES") 
+
+table_names <- reach_tables_list[[1]]  
+
+reach_tables <- list()
+
+reach_menages_level1  <- dbGetQuery(db, "SELECT * FROM `level-1`") %>% rename_with(tolower) %>%
+  rename_with(~ gsub("-", "_", .x))
+print("reach_menages_level1 downloaded")
+print(Sys.time())
+
+reach_menages_hh_rec <- dbGetQuery(db, "SELECT * FROM hh_rec") %>% rename_with(tolower) %>%
+  rename_with(~ gsub("-", "_", .x))
+print("reach_menages_rec downloaded")
+print(Sys.time())
+
+reach_menages_hh_gps <- dbGetQuery(db, "SELECT * FROM hh_gps") %>% rename_with(tolower) %>%
+  rename_with(~ gsub("-", "_", .x))
+print("reach_menages_gps downloaded")
+print(Sys.time())
+
+write.csv(reach_menages_level1, paste0(mypath, "reach_menages_level1.csv"), row.names=F)
+write.csv(reach_menages_hh_rec, paste0(mypath, "reach_menages_hh_rec.csv"), row.names=F)
+write.csv(reach_menages_hh_gps, paste0(mypath, "reach_menages_hh_gps.csv"), row.names=F)
+
+
 # household forms ---------------------------------------------------------
 
 #REACH HOUSEHOLD FORMS
@@ -231,49 +274,6 @@ write.csv(reach_hh_liste_menage, paste0(mypath, "reach_hh_liste_menage.csv"),row
 write.csv(reach_hh_naiss_enfants_1_59_mois, paste0(mypath, "reach_hh_naiss_enfants_1_59_mois.csv"),row.names=F)
 write.csv(reach_hh_deces_enfants_1_59_mois, paste0(mypath, "reach_hh_deces_enfants_1_59_mois.csv"),row.names=F)
 write.csv(reach_hh_traitement_surveillance_enf, paste0(mypath, "reach_hh_traitement_surveillance_enf.csv"),row.names=F)
-
-# menages -----------------------------------------------------------------
-
-# Establish connection
-db <- dbConnect(
-  RMySQL::MySQL(),
-  dbname = "reach_menages",
-  host = "db.reach.instat.ml",  # Usually "localhost" or an IP
-  port = 3307,  # Change if needed
-  user = username,
-  password = pword
-)
-
-knitr::opts_chunk$set(connection = db, max.print = 30)
-reach_tables_list <- dbGetQuery(db, 
-                                "show tables")
-
-# Get the list of table names from the database
-reach_tables_list <- dbGetQuery(db, "SHOW TABLES") 
-
-table_names <- reach_tables_list[[1]]  
-
-reach_tables <- list()
-
-reach_menages_level1  <- dbGetQuery(db, "SELECT * FROM `level-1`") %>% rename_with(tolower) %>%
-  rename_with(~ gsub("-", "_", .x))
-print("reach_menages_level1 downloaded")
-print(Sys.time())
-
-reach_menages_hh_rec <- dbGetQuery(db, "SELECT * FROM hh_rec") %>% rename_with(tolower) %>%
-  rename_with(~ gsub("-", "_", .x))
-print("reach_menages_rec downloaded")
-print(Sys.time())
-
-reach_menages_hh_gps <- dbGetQuery(db, "SELECT * FROM hh_gps") %>% rename_with(tolower) %>%
-  rename_with(~ gsub("-", "_", .x))
-print("reach_menages_gps downloaded")
-print(Sys.time())
-
-write.csv(reach_menages_level1, paste0(mypath, "reach_menages_level1.csv"), row.names=F)
-write.csv(reach_menages_hh_rec, paste0(mypath, "reach_menages_hh_rec.csv"), row.names=F)
-write.csv(reach_menages_hh_gps, paste0(mypath, "reach_menages_hh_gps.csv"), row.names=F)
-
 
 # mortalite-menages -------------------------------------------------------
 
